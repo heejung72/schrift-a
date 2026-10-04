@@ -7,6 +7,9 @@ data/
 # 참고자료
 references/
 
+# 작업 보고서
+docs/
+
 # Python
 __pycache__/
 *.py[cod]

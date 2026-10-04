@@ -30,6 +30,15 @@
 - [x] FastAPI 앱 (app/main.py, simulator.py, static/index.html)
 - [x] run_all.py 정리, requirements.txt 갱신
 
+#### 대시보드 UI 전면 개편 (3페이지 SPA)
+- [x] 프리미엄 다크 "관제실" 디자인 (사이드바 내비 + 글래스 카드 + SVG 차트)
+- [x] 페이지1 실시간 모니터링: KPI + 실시간 확률 스트림 + 검사 대기열 (금형 필터)
+- [x] 페이지2 모델 성능: 지표 카드 + 4모델 비교 + 영향변수 Top12 + 성능향상 단계
+- [x] 페이지3 검사 우선순위: 우선순위 곡선 + 3단계 판정 + 불량유형 군집 + 오류분석
+- [x] `/model-info` 엔드포인트 (cv_predictions 라이브 계산 + 실제 피처 중요도)
+- [x] 해시 딥링크(#live/#model/#prio) + 대시보드 스크린샷 3장 (outputs/dashboard_*.png)
+- [x] 2·3페이지는 시뮬레이터 없이도 /model-info만으로 완전히 채워짐 (캡처 용이)
+
 ## 10/06 내일 할 일
 
 ### 오전 — 보고서 초안
@@ -37,7 +46,7 @@
 - [ ] report_notes/ch5.md (창의성 — SPC+ML 결합, Rolling 피처, 군집화 연결)
 - [ ] report_notes/ch6.md (코드 재현성 — run_all.py 실행 설명)
 - [ ] 보고서 본문 초안 (hwpx 붙여넣기용 텍스트)
-- [ ] 대시보드 스크린샷 (사용자 직접: 브라우저 http://localhost:8000 → uvicorn 실행 후)
+- [x] 대시보드 스크린샷 3장 자동 생성 완료 (outputs/dashboard_1~3_*.png) — 필요시 재촬영만
 
 ### 오후 — 마무리
 - [ ] README.md 작성 (실행 환경, 실행 순서, 소요 시간)

@@ -24,6 +24,7 @@ from src.features import make_features, ROLLING_WINDOW, MOLD_MAP
 # ═══════════════════════════════════════════════════════
 MODEL = None
 FEATURE_COLS = None
+MODEL_INFO = None
 DB_PATH = "outputs/shots.db"
 
 RAW_COLS = [
@@ -64,14 +65,159 @@ def init_db():
     conn.close()
 
 
+# ═══════════════════════════════════════════════════════
+# 모델 성능/우선순위 정보 (대시보드 2·3페이지용)
+# cv_predictions.csv에서 라이브 계산 + 실제 피처 중요도 추출
+# ═══════════════════════════════════════════════════════
+FEATURE_LABELS = {
+    "ewma_resid_norm": "복합 EWMA 이탈도",
+    "Clamp_Close_Time_ewma_resid": "금형닫힘 EWMA 잔차",
+    "Plasticizing_Time_ewma_resid": "가소화 EWMA 잔차",
+    "Plasticizing_Time_delta": "가소화시간 변화량",
+    "Cushion_Position_ewma_resid": "쿠션위치 EWMA 잔차",
+    "Max_Injection_Speed_ewma_resid": "사출속도 EWMA 잔차",
+    "Cycle_Time_ewma_resid": "사이클타임 EWMA 잔차",
+    "Max_Injection_Pressure_ewma_resid": "사출압력 EWMA 잔차",
+    "barrel_temp_range": "배럴 온도 편차",
+    "Clamp_Close_Time": "금형 닫힘 시간",
+    "spc_violation_count": "SPC 위반 횟수",
+    "Mold_Temperature_3": "금형 온도 3",
+    "Cycle_Time_delta": "사이클타임 변화량",
+    "Injection_Time_delta": "사출시간 변화량",
+    "speed_pressure_ratio": "속도·압력 비",
+    "Barrel_Temperature_5": "배럴 온도 5",
+    "Max_Switch_Over_Pressure": "전환 압력",
+    "Hopper_Temperature": "호퍼 온도",
+    "Plasticizing_Time": "가소화 시간",
+    "Cycle_Time": "사이클 타임",
+    "Injection_Time": "사출 시간",
+    "Filling_Time": "충전 시간",
+    "Cushion_Position": "쿠션 위치",
+    "Plasticizing_Position": "가소화 위치",
+    "Max_Injection_Speed": "최대 사출속도",
+    "Max_Injection_Pressure": "최대 사출압력",
+    "Max_Screw_RPM": "최대 스크류 RPM",
+    "Average_Screw_RPM": "평균 스크류 RPM",
+    "Max_Back_Pressure": "최대 배압",
+    "Average_Back_Pressure": "평균 배압",
+    "Mold_Temperature_4": "금형 온도 4",
+    "Barrel_Temperature_1": "배럴 온도 1",
+    "Barrel_Temperature_2": "배럴 온도 2",
+    "Barrel_Temperature_3": "배럴 온도 3",
+    "Barrel_Temperature_4": "배럴 온도 4",
+    "Barrel_Temperature_6": "배럴 온도 6",
+    "Clamp_Close_Time_delta": "금형닫힘 변화량",
+    "mold_enc": "금형 구분",
+}
+
+
+def _feature_group(name: str) -> str:
+    """피처를 3그룹으로 분류: 신규(Rolling·SPC) / 제조지식 / 원시 공정값."""
+    if "ewma_resid" in name or "spc_" in name or name in ("ewma_resid_norm", "spc_violation_count"):
+        return "rolling"
+    if name.endswith("_delta") or name in ("barrel_temp_range", "speed_pressure_ratio"):
+        return "domain"
+    return "base"
+
+
+def compute_model_info() -> dict:
+    from sklearn.metrics import average_precision_score
+
+    info: dict = {}
+
+    # cv_predictions.csv 기반 라이브 계산 (재현 가능)
+    df = pd.read_csv("outputs/cv_predictions.csv")
+    yt = df["y_true"].to_numpy()
+    yp = df["y_prob"].to_numpy()
+    n, nd = len(df), int(yt.sum())
+    info["dataset"] = {"n_shots": n, "n_defect": nd,
+                       "defect_rate": round(nd / n, 4)}
+
+    order = np.argsort(-yp)
+    cum = np.cumsum(yt[order])
+    info["priority_curve"] = [
+        {"pct": p, "capture": round(float(cum[int(round(n * p / 100)) - 1]) / nd, 4)
+         if p > 0 else 0.0}
+        for p in range(0, 101, 2)
+    ]
+    info["priority_points"] = {
+        str(p): round(float(cum[int(round(n * p / 100)) - 1]) / nd, 4)
+        for p in (10, 20, 30)
+    }
+    try:
+        info["pr_auc_live"] = round(float(average_precision_score(yt, yp)), 4)
+    except Exception:
+        info["pr_auc_live"] = None
+
+    # 실제 피처 중요도 (앙상블 rf+lgbm 평균, 정규화)
+    try:
+        rf = MODEL.named_estimators_["rf"].feature_importances_.astype(float)
+        lg = MODEL.named_estimators_["lgbm"].feature_importances_.astype(float)
+        rf, lg = rf / rf.sum(), lg / lg.sum()
+        imp = (rf + lg) / 2
+        pairs = sorted(zip(FEATURE_COLS, imp), key=lambda x: -x[1])[:12]
+        mx = pairs[0][1]
+        info["feature_importance"] = [
+            {"name": c, "label": FEATURE_LABELS.get(c, c),
+             "value": round(float(v), 4), "rel": round(float(v / mx), 4),
+             "group": _feature_group(c)}
+            for c, v in pairs
+        ]
+    except Exception:
+        info["feature_importance"] = []
+
+    # 보고서(report_notes ch2/ch3) 확정 수치
+    info["metrics"] = {"f1": 0.343, "pr_auc": 0.258, "recall": 0.284,
+                       "precision": 0.650, "brier": 0.015, "f1_baseline": 0.240}
+    info["models"] = [
+        {"name": "로지스틱 회귀", "role": "베이스라인", "f1": 0.240, "pr_auc": 0.161},
+        {"name": "RandomForest", "role": "배깅", "f1": 0.336, "pr_auc": 0.260},
+        {"name": "LightGBM", "role": "부스팅", "f1": 0.303, "pr_auc": 0.235},
+        {"name": "앙상블 (RF+LGB)", "role": "최종 선정", "f1": 0.343, "pr_auc": 0.258},
+    ]
+    info["feature_steps"] = [
+        {"label": "기본 (class_weight)", "f1": 0.222, "pr_auc": 0.221},
+        {"label": "+ 임계값 최적화", "f1": 0.266, "pr_auc": 0.230},
+        {"label": "+ Rolling·SPC 피처", "f1": 0.303, "pr_auc": 0.235},
+    ]
+    info["tiers"] = [
+        {"name": "즉시 검사", "range": "상위 5%", "count": 121, "defects": 13,
+         "precision": 0.107, "level": 2},
+        {"name": "재검사", "range": "상위 6~20%", "count": 359, "defects": 13,
+         "precision": 0.036, "level": 1},
+        {"name": "통과", "range": "하위 80%", "count": 1913, "defects": 16,
+         "precision": 0.008, "level": 0},
+    ]
+    info["clusters"] = [
+        {"type": "A", "n": 4, "label": "공정 급변동형",
+         "feature": "ewma_resid_norm 7.01", "action": "즉시 공정 정지 검토"},
+        {"type": "B", "n": 17, "label": "온도편차 · 금형닫힘 복합형",
+         "feature": "barrel_temp_range 2.68", "action": "금형 온도 · 압력 점검"},
+        {"type": "C", "n": 21, "label": "배럴 온도 편차형",
+         "feature": "barrel_temp_range 2.54", "action": "배럴 온도 제어 확인"},
+    ]
+    info["confusion"] = {"tp": 15, "fn": 27, "fp": 177, "tn": 2174, "recall": 0.36}
+    info["warmup"] = [
+        {"seg": "워밍업 구간", "recall": 0.50},
+        {"seg": "안정 구간", "recall": 0.23},
+    ]
+    return info
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global MODEL, FEATURE_COLS
+    global MODEL, FEATURE_COLS, MODEL_INFO
     with open("outputs/final_model.pkl", "rb") as f:
         MODEL = pickle.load(f)
     with open("outputs/feature_columns.json") as f:
         FEATURE_COLS = json.load(f)
     init_db()
+    try:
+        MODEL_INFO = compute_model_info()
+        print("모델 성능 정보 계산 완료.")
+    except Exception as e:
+        print(f"모델 정보 계산 실패(대시보드 2·3페이지 제한): {e}")
+        MODEL_INFO = {}
     print("모델 로드 완료. 서버 준비.")
     yield
 
@@ -252,6 +398,12 @@ async def reset_db():
     conn.commit()
     conn.close()
     return {"status": "reset complete"}
+
+
+@app.get("/model-info")
+async def model_info():
+    """모델 성능 · 피처 중요도 · 검사 우선순위 (대시보드 2·3페이지용)."""
+    return MODEL_INFO or {}
 
 
 @app.get("/", response_class=HTMLResponse)

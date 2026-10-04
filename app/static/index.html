@@ -3,236 +3,637 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>사출성형 불량 예측 대시보드</title>
+<title>Injection Molding · 불량 예측 관제</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css">
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Noto Sans KR', sans-serif; background: #0f172a; color: #e2e8f0; }
-  header {
-    background: linear-gradient(90deg, #1e293b, #0f172a);
-    padding: 16px 24px; border-bottom: 1px solid #334155;
-    display: flex; align-items: center; gap: 12px;
+  :root{
+    --bg:#070810; --bg-2:#0b0d18;
+    --surface:rgba(255,255,255,.028); --surface-2:rgba(255,255,255,.05);
+    --border:rgba(255,255,255,.08); --border-strong:rgba(255,255,255,.14);
+    --text:#eceef5; --muted:#8b90a6; --dim:#565b73;
+    --accent:#7c8bff; --accent-2:#22d3ee; --accent-ink:#aeb7ff;
+    --danger:#ff5d7a; --warn:#ffb224; --ok:#2fd3a0;
+    --r:18px; --r-sm:12px;
+    --shadow:0 1px 0 rgba(255,255,255,.04) inset, 0 18px 40px -24px rgba(0,0,0,.9);
+    --font:"Pretendard Variable",Pretendard,-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Noto Sans KR",sans-serif;
   }
-  header h1 { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; }
-  header .subtitle { font-size: 0.8rem; color: #94a3b8; }
-  .badge { background: #3b82f6; color: #fff; padding: 2px 8px;
-           border-radius: 9999px; font-size: 0.7rem; }
-  main { padding: 20px 24px; display: grid; gap: 20px; }
-
-  /* 요약 카드 */
-  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
-  .card {
-    background: #1e293b; border-radius: 10px; padding: 16px;
-    border: 1px solid #334155;
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:var(--font); color:var(--text); background:var(--bg);
+    background-image:
+      radial-gradient(1100px 600px at 12% -8%, rgba(124,139,255,.16), transparent 60%),
+      radial-gradient(900px 500px at 100% 0%, rgba(34,211,238,.10), transparent 55%),
+      radial-gradient(700px 700px at 85% 110%, rgba(124,139,255,.07), transparent 60%);
+    -webkit-font-smoothing:antialiased; font-feature-settings:"tnum" 1; letter-spacing:-.01em;
   }
-  .card .label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
-  .card .value { font-size: 2rem; font-weight: 700; margin-top: 4px; }
-  .card.red   .value { color: #f87171; }
-  .card.yellow .value { color: #fbbf24; }
-  .card.green .value { color: #4ade80; }
-  .card.blue  .value { color: #60a5fa; }
+  ::-webkit-scrollbar{width:10px;height:10px}
+  ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:8px;border:2px solid transparent;background-clip:content-box}
+  ::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2);background-clip:content-box}
 
-  /* 2단 레이아웃 */
-  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  .app{display:grid;grid-template-columns:252px 1fr;min-height:100vh}
 
-  /* 패널 */
-  .panel {
-    background: #1e293b; border-radius: 10px; padding: 16px;
-    border: 1px solid #334155;
+  /* ───────── Sidebar ───────── */
+  .side{
+    position:sticky;top:0;height:100vh;padding:22px 16px;
+    border-right:1px solid var(--border);
+    background:linear-gradient(180deg,rgba(255,255,255,.03),transparent 30%);
+    display:flex;flex-direction:column;gap:6px;
   }
-  .panel h2 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px; }
+  .brand{display:flex;align-items:center;gap:12px;padding:6px 10px 20px}
+  .logo{
+    width:38px;height:38px;border-radius:11px;flex:none;position:relative;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    box-shadow:0 8px 24px -8px rgba(124,139,255,.7);
+    display:grid;place-items:center;
+  }
+  .logo svg{width:20px;height:20px}
+  .brand .t{font-size:.95rem;font-weight:800;line-height:1.15;letter-spacing:-.02em}
+  .brand .s{font-size:.68rem;color:var(--muted);font-weight:500;margin-top:2px}
+  .nav-label{font-size:.66rem;color:var(--dim);text-transform:uppercase;letter-spacing:.14em;padding:14px 12px 6px;font-weight:700}
+  .nav{
+    display:flex;align-items:center;gap:12px;padding:11px 12px;border-radius:12px;
+    color:var(--muted);font-size:.9rem;font-weight:600;cursor:pointer;position:relative;
+    transition:background .18s,color .18s,transform .1s; user-select:none;
+  }
+  .nav svg{width:18px;height:18px;flex:none;opacity:.85}
+  .nav:hover{background:var(--surface);color:var(--text)}
+  .nav:active{transform:translateY(1px)}
+  .nav.active{background:linear-gradient(90deg,rgba(124,139,255,.18),rgba(124,139,255,.04));color:#fff}
+  .nav.active::before{content:"";position:absolute;left:-16px;top:50%;transform:translateY(-50%);width:3px;height:22px;border-radius:0 3px 3px 0;background:linear-gradient(var(--accent),var(--accent-2));box-shadow:0 0 14px var(--accent)}
+  .nav.active svg{opacity:1;color:var(--accent-ink)}
+  .side-foot{margin-top:auto;padding:14px 12px 4px;border-top:1px solid var(--border);font-size:.7rem;color:var(--dim);line-height:1.7}
+  .side-foot b{color:var(--muted);font-weight:700}
 
-  /* 테이블 */
-  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
-  th { background: #0f172a; color: #64748b; padding: 8px 10px;
-       text-align: left; font-weight: 600; border-bottom: 1px solid #334155; }
-  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; }
-  tr:hover td { background: #263248; }
-  .tier2 { color: #f87171; font-weight: 700; }
-  .tier1 { color: #fbbf24; font-weight: 600; }
-  .tier0 { color: #4ade80; }
+  /* ───────── Topbar ───────── */
+  .main{min-width:0;display:flex;flex-direction:column}
+  .top{
+    position:sticky;top:0;z-index:20;display:flex;align-items:center;gap:16px;
+    padding:16px 30px;border-bottom:1px solid var(--border);
+    background:rgba(7,8,16,.72);backdrop-filter:blur(16px);
+  }
+  .top h1{font-size:1.12rem;font-weight:800;letter-spacing:-.025em}
+  .top .crumb{font-size:.74rem;color:var(--muted);margin-top:2px}
+  .spacer{flex:1}
+  .seg{display:flex;background:var(--surface);border:1px solid var(--border);border-radius:11px;padding:3px}
+  .seg button{
+    border:0;background:transparent;color:var(--muted);font-family:inherit;font-weight:700;
+    font-size:.76rem;padding:6px 13px;border-radius:8px;cursor:pointer;transition:.16s;letter-spacing:-.01em;
+  }
+  .seg button.on{background:var(--surface-2);color:#fff;box-shadow:0 1px 0 rgba(255,255,255,.06) inset}
+  .live{display:flex;align-items:center;gap:8px;font-size:.76rem;color:var(--muted);font-weight:600;
+    padding:7px 13px;border:1px solid var(--border);border-radius:11px;background:var(--surface)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--ok);position:relative}
+  .dot::after{content:"";position:absolute;inset:-5px;border-radius:50%;border:1px solid var(--ok);opacity:.5;animation:ping 1.8s cubic-bezier(0,0,.2,1) infinite}
+  @keyframes ping{75%,100%{transform:scale(2);opacity:0}}
+  .ghost{border:1px solid var(--border);background:var(--surface);color:var(--muted);font-family:inherit;
+    font-weight:700;font-size:.76rem;padding:8px 14px;border-radius:11px;cursor:pointer;transition:.16s;display:flex;align-items:center;gap:7px}
+  .ghost:hover{color:#fff;border-color:var(--border-strong);background:var(--surface-2)}
 
-  /* 확률 바 */
-  .prob-bar { background: #334155; border-radius: 4px; height: 6px; width: 120px; display: inline-block; vertical-align: middle; }
-  .prob-fill { height: 6px; border-radius: 4px; }
-  .prob-val { font-size: 0.8rem; margin-left: 6px; }
+  /* ───────── Pages / grid ───────── */
+  .page{padding:26px 30px 40px;display:none}
+  .page.show{display:block;animation:rise .45s cubic-bezier(.2,.7,.3,1)}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+  .grid{display:grid;gap:18px}
+  .kpis{grid-template-columns:repeat(4,1fr)}
+  .c2{grid-template-columns:1.6fr 1fr}
+  .c2e{grid-template-columns:1fr 1fr}
+  .c3{grid-template-columns:repeat(3,1fr)}
+  @media(max-width:1180px){.c2,.c2e{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.c3{grid-template-columns:1fr}}
 
-  /* 히스토그램 */
-  #hist-canvas { width: 100%; height: 160px; }
+  .panel{
+    background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
+    padding:20px;box-shadow:var(--shadow);position:relative;overflow:hidden;
+  }
+  .panel.pad0{padding:0}
+  .phead{display:flex;align-items:baseline;justify-content:space-between;gap:12px;margin-bottom:16px}
+  .phead h2{font-size:.82rem;font-weight:700;color:var(--text);letter-spacing:.01em}
+  .phead .sub{font-size:.72rem;color:var(--muted)}
+  .tag{font-size:.64rem;font-weight:800;letter-spacing:.04em;padding:3px 8px;border-radius:7px;text-transform:uppercase}
+  .tag.v{background:rgba(124,139,255,.16);color:var(--accent-ink)}
+  .tag.c{background:rgba(34,211,238,.14);color:#8ae7f5}
 
-  /* 상태 표시 */
-  #status { font-size: 0.75rem; color: #475569; text-align: right; }
-  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
-         background: #4ade80; margin-right: 6px; animation: pulse 1.5s infinite; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+  /* KPI card */
+  .kpi{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px 20px;
+    box-shadow:var(--shadow);transition:transform .18s,border-color .18s,box-shadow .18s;position:relative;overflow:hidden}
+  .kpi::before{content:"";position:absolute;inset:0 0 auto 0;height:2px;opacity:.9;background:var(--bar,var(--accent))}
+  .kpi:hover{transform:translateY(-3px);border-color:var(--border-strong)}
+  .kpi .lab{display:flex;align-items:center;gap:7px;font-size:.74rem;color:var(--muted);font-weight:600}
+  .kpi .lab i{width:9px;height:9px;border-radius:3px;background:var(--bar,var(--accent));display:inline-block}
+  .kpi .val{font-size:2.3rem;font-weight:800;margin-top:10px;letter-spacing:-.03em;line-height:1}
+  .kpi .foot{font-size:.72rem;color:var(--dim);margin-top:8px}
+  .kpi.red{--bar:var(--danger)} .kpi.red .val{color:var(--danger)}
+  .kpi.yel{--bar:var(--warn)} .kpi.yel .val{color:var(--warn)}
+  .kpi.grn{--bar:var(--ok)} .kpi.grn .val{color:var(--ok)}
+  .kpi.blu{--bar:linear-gradient(90deg,var(--accent),var(--accent-2))} .kpi.blu .val{background:linear-gradient(90deg,#fff,var(--accent-ink));-webkit-background-clip:text;background-clip:text;color:transparent}
+
+  /* table */
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th{color:var(--dim);padding:10px 14px;text-align:left;font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.07em;border-bottom:1px solid var(--border)}
+  td{padding:11px 14px;border-bottom:1px solid rgba(255,255,255,.045);color:var(--text)}
+  tbody tr{transition:background .14s}
+  tbody tr:hover td{background:rgba(255,255,255,.028)}
+  tbody tr:last-child td{border-bottom:0}
+  .mono{font-variant-numeric:tabular-nums;font-weight:700}
+  .mold{font-size:.68rem;font-weight:800;letter-spacing:.03em;padding:2px 7px;border-radius:6px;background:var(--surface-2);color:var(--muted);text-transform:uppercase}
+
+  .bar{height:7px;border-radius:6px;background:rgba(255,255,255,.07);overflow:hidden;min-width:90px}
+  .bar > i{display:block;height:100%;border-radius:6px;transition:width .9s cubic-bezier(.2,.8,.2,1)}
+  .pill{font-size:.68rem;font-weight:800;padding:3px 9px;border-radius:20px;white-space:nowrap;letter-spacing:-.01em}
+  .pill.t2{background:rgba(255,93,122,.16);color:#ff8ba0}
+  .pill.t1{background:rgba(255,178,36,.16);color:#ffcb63}
+  .pill.t0{background:rgba(47,211,160,.14);color:#6fe4c2}
+
+  .empty{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;height:100%;min-height:240px;color:var(--dim);text-align:center}
+  .empty code{background:var(--surface-2);border:1px solid var(--border);padding:5px 11px;border-radius:8px;color:var(--accent-ink);font-size:.78rem}
+
+  /* metric hero cards (page 2) */
+  .metric{background:linear-gradient(180deg,var(--surface-2),var(--surface));border:1px solid var(--border);border-radius:var(--r-sm);padding:16px 18px}
+  .metric .k{font-size:.72rem;color:var(--muted);font-weight:600}
+  .metric .v{font-size:1.8rem;font-weight:800;letter-spacing:-.03em;margin-top:6px}
+  .metric .d{font-size:.7rem;color:var(--ok);font-weight:700;margin-top:4px}
+  .metric .d.n{color:var(--muted)}
+
+  .legend{display:flex;gap:16px;flex-wrap:wrap;font-size:.72rem;color:var(--muted);font-weight:600}
+  .legend span{display:inline-flex;align-items:center;gap:6px}
+  .legend i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+  /* feature importance rows */
+  .fi{display:flex;flex-direction:column;gap:9px}
+  .fi .row{display:grid;grid-template-columns:150px 1fr 48px;align-items:center;gap:12px}
+  .fi .nm{font-size:.76rem;color:var(--text);font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fi .track{height:11px;border-radius:7px;background:rgba(255,255,255,.055);overflow:hidden}
+  .fi .track > i{display:block;height:100%;border-radius:7px;transform-origin:left;animation:grow .9s cubic-bezier(.2,.8,.2,1) both}
+  @keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+  .fi .vv{font-size:.72rem;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums;font-weight:700}
+
+  /* tier segmented bar (page 3) */
+  .tierbar{display:flex;height:46px;border-radius:12px;overflow:hidden;border:1px solid var(--border)}
+  .tierbar > div{display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:#0a0a12;transition:flex .8s cubic-bezier(.2,.8,.2,1)}
+  .tseg2{background:linear-gradient(135deg,#ff5d7a,#ff8aa0)}
+  .tseg1{background:linear-gradient(135deg,#ffb224,#ffd36b)}
+  .tseg0{background:linear-gradient(135deg,#1c2130,#232a3d);color:var(--muted)!important}
+
+  .stat{background:var(--surface-2);border:1px solid var(--border);border-radius:var(--r-sm);padding:14px 16px}
+  .stat .l{font-size:.72rem;color:var(--muted);font-weight:600}
+  .stat .n{font-size:1.5rem;font-weight:800;margin-top:4px;letter-spacing:-.02em}
+
+  .cm{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .cm div{border-radius:12px;padding:14px;border:1px solid var(--border);text-align:center}
+  .cm .lb{font-size:.68rem;font-weight:700;color:var(--muted)}
+  .cm .num{font-size:1.5rem;font-weight:800;margin-top:3px;font-variant-numeric:tabular-nums}
+  .cm .tp{background:rgba(47,211,160,.08)}.cm .tp .num{color:var(--ok)}
+  .cm .fn{background:rgba(255,93,122,.09)}.cm .fn .num{color:var(--danger)}
+  .cm .fp{background:rgba(255,178,36,.08)}.cm .fp .num{color:var(--warn)}
+  .cm .tn{background:var(--surface-2)}
+
+  .cl{border:1px solid var(--border);border-radius:var(--r-sm);padding:16px;background:var(--surface-2);position:relative;overflow:hidden}
+  .cl .badge{position:absolute;top:-10px;right:-10px;width:66px;height:66px;border-radius:50%;opacity:.14;background:var(--accent)}
+  .cl .ty{font-size:.78rem;font-weight:800;color:var(--accent-ink)}
+  .cl .nm{font-size:1.02rem;font-weight:800;margin-top:6px;letter-spacing:-.02em}
+  .cl .cnt{font-size:.74rem;color:var(--muted);margin-top:3px}
+  .cl .ft{font-size:.68rem;color:var(--dim);margin-top:8px;font-variant-numeric:tabular-nums}
+  .cl .ac{margin-top:12px;font-size:.74rem;color:var(--text);padding-top:10px;border-top:1px solid var(--border);display:flex;gap:7px;align-items:center}
+  .cl .ac::before{content:"▸";color:var(--accent)}
+
+  .hero{background:linear-gradient(135deg,rgba(124,139,255,.14),rgba(34,211,238,.06));border:1px solid rgba(124,139,255,.25)}
+  .hero .big{font-size:2.6rem;font-weight:800;letter-spacing:-.035em;line-height:1.05;margin:4px 0 6px}
+  .hero .big b{background:linear-gradient(90deg,var(--accent-ink),var(--accent-2));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{color:var(--muted);font-size:.84rem;line-height:1.6;max-width:60ch}
+
+  svg .grid-l{stroke:rgba(255,255,255,.06)}
+  svg text{fill:var(--dim);font-size:11px;font-family:var(--font)}
+  .draw{stroke-dasharray:1400;stroke-dashoffset:1400;animation:draw 1.3s cubic-bezier(.4,0,.2,1) forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  .barsZ{transform:scaleY(0);transform-origin:bottom;animation:barup .8s cubic-bezier(.2,.8,.2,1) forwards}
+  @keyframes barup{to{transform:scaleY(1)}}
 </style>
 </head>
 <body>
+<div class="app">
 
-<header>
-  <div>
-    <h1>사출성형 불량 예측 시스템 <span class="badge">LIVE</span></h1>
-    <div class="subtitle">Rolling EWMA + SPC + Ensemble(RF+LGB) | 검사 우선순위 자동 결정</div>
-  </div>
-  <div style="margin-left:auto" id="status"><span class="dot"></span>자동 갱신 중</div>
-</header>
-
-<main>
-  <!-- 요약 카드 -->
-  <div class="cards">
-    <div class="card blue">
-      <div class="label">총 처리 샷</div>
-      <div class="value" id="total">0</div>
-    </div>
-    <div class="card red">
-      <div class="label">🔴 즉시 검사</div>
-      <div class="value" id="immediate">0</div>
-    </div>
-    <div class="card yellow">
-      <div class="label">🟡 재검사</div>
-      <div class="value" id="review">0</div>
-    </div>
-    <div class="card green">
-      <div class="label">✅ 통과</div>
-      <div class="value" id="pass_">0</div>
-    </div>
-  </div>
-
-  <div class="two-col">
-    <!-- 검사 대기열 -->
-    <div class="panel">
-      <h2>검사 대기열 (위험도 순)</h2>
-      <table>
-        <thead>
-          <tr>
-            <th>Shot</th>
-            <th>금형</th>
-            <th>불량 확률</th>
-            <th>판정</th>
-          </tr>
-        </thead>
-        <tbody id="queue-body"></tbody>
-      </table>
-    </div>
-
-    <!-- 최근 불량 확률 히스토그램 -->
-    <div class="panel">
-      <h2>최근 200개 샷 불량 확률 분포</h2>
-      <canvas id="hist-canvas"></canvas>
-      <div style="margin-top:12px; font-size:0.78rem; color:#94a3b8;">
-        <span style="color:#f87171">■</span> 즉시검사 (≥0.12) &nbsp;
-        <span style="color:#fbbf24">■</span> 재검사 (0.03~0.12) &nbsp;
-        <span style="color:#4ade80">■</span> 통과 (&lt;0.03)
+  <!-- ══════════ SIDEBAR ══════════ -->
+  <aside class="side">
+    <div class="brand">
+      <div class="logo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#0a0a12" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M3 3v18h18"/><path d="M7 15l3.5-4 3 2.5L21 7"/>
+        </svg>
+      </div>
+      <div>
+        <div class="t">사출성형 품질 관제</div>
+        <div class="s">Defect Prediction AI</div>
       </div>
     </div>
+
+    <div class="nav-label">모니터링</div>
+    <div class="nav active" data-page="live">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+      실시간 모니터링
+    </div>
+
+    <div class="nav-label">분석</div>
+    <div class="nav" data-page="model">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>
+      모델 성능
+    </div>
+    <div class="nav" data-page="prio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c4-9 7-11 18-12"/><path d="M15 4h6v6"/></svg>
+      검사 우선순위
+    </div>
+
+    <div class="side-foot">
+      <div><b>모델</b> 앙상블 RF + LightGBM</div>
+      <div><b>피처</b> 37개 · Rolling·SPC 결합</div>
+      <div><b>검증</b> StratifiedGroupKFold 5×10</div>
+    </div>
+  </aside>
+
+  <!-- ══════════ MAIN ══════════ -->
+  <div class="main">
+    <header class="top">
+      <div>
+        <h1 id="pgTitle">실시간 모니터링</h1>
+        <div class="crumb" id="pgCrumb">공정 데이터 실시간 수집 · 불량 확률 3단계 자동 판정</div>
+      </div>
+      <div class="spacer"></div>
+      <div class="seg" id="moldSeg">
+        <button class="on" data-mold="all">전체</button>
+        <button data-mold="cn7">CN7</button>
+        <button data-mold="rg3">RG3</button>
+      </div>
+      <div class="live"><span class="dot"></span><span id="liveTxt">실시간 갱신</span></div>
+      <button class="ghost" id="resetBtn" title="시뮬레이션 데이터 초기화">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2v6h6"/><path d="M3 13a9 9 0 1 0 3-7.7L3 8"/></svg>
+        초기화
+      </button>
+    </header>
+
+    <!-- ───── PAGE 1 : LIVE ───── -->
+    <section class="page show" id="page-live">
+      <div class="grid kpis" style="margin-bottom:18px">
+        <div class="kpi blu"><div class="lab"><i></i>총 처리 샷</div><div class="val" id="k-total">0</div><div class="foot">누적 추론 건수</div></div>
+        <div class="kpi red"><div class="lab"><i></i>즉시 검사</div><div class="val" id="k-imm">0</div><div class="foot">상위 위험 · 라인 정지 검토</div></div>
+        <div class="kpi yel"><div class="lab"><i></i>재검사</div><div class="val" id="k-rev">0</div><div class="foot">샘플 추출 재확인</div></div>
+        <div class="kpi grn"><div class="lab"><i></i>통과</div><div class="val" id="k-pass">0</div><div class="foot">정상 생산 지속</div></div>
+      </div>
+
+      <div class="grid c2">
+        <div class="panel">
+          <div class="phead">
+            <div><h2>실시간 불량 확률 스트림</h2><div class="sub">최근 200개 샷 · 임계 구간 표시</div></div>
+            <div class="legend">
+              <span><i style="background:var(--danger)"></i>즉시 ≥12%</span>
+              <span><i style="background:var(--warn)"></i>재검사 3~12%</span>
+              <span><i style="background:var(--ok)"></i>통과 &lt;3%</span>
+            </div>
+          </div>
+          <div id="stream"></div>
+          <div class="grid c2e" style="margin-top:16px">
+            <div class="stat"><div class="l">CN7 처리</div><div class="n" id="s-cn7">0</div></div>
+            <div class="stat"><div class="l">RG3 처리</div><div class="n" id="s-rg3">0</div></div>
+          </div>
+        </div>
+
+        <div class="panel pad0">
+          <div class="phead" style="padding:20px 20px 0">
+            <div><h2>검사 대기열</h2><div class="sub">위험도 내림차순</div></div>
+            <span class="tag v" id="q-cnt">0건</span>
+          </div>
+          <div style="max-height:520px;overflow:auto;margin-top:12px">
+            <table>
+              <thead><tr><th>Shot</th><th>금형</th><th>불량 확률</th><th style="text-align:right">판정</th></tr></thead>
+              <tbody id="q-body"></tbody>
+            </table>
+            <div id="q-empty" class="empty" style="display:none">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".5"><path d="M20 6 9 17l-5-5"/></svg>
+              <div>검사 대기 건이 없습니다</div>
+              <code>python app/simulator.py --rate 5 --limit 400</code>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ───── PAGE 2 : MODEL ───── -->
+    <section class="page" id="page-model">
+      <div class="grid" style="grid-template-columns:repeat(5,1fr);margin-bottom:18px" id="metricRow"></div>
+
+      <div class="grid c2e">
+        <div class="panel">
+          <div class="phead">
+            <div><h2>모델 비교 (동일 조건)</h2><div class="sub">StratifiedGroupKFold 5×10 · F1 / PR-AUC</div></div>
+            <div class="legend"><span><i style="background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i>F1</span><span><i style="background:#3a4260"></i>PR-AUC</span></div>
+          </div>
+          <div id="cmpChart"></div>
+        </div>
+
+        <div class="panel">
+          <div class="phead">
+            <div><h2>영향 변수 Top 12</h2><div class="sub">앙상블 피처 중요도 (rf+lgbm 평균)</div></div>
+          </div>
+          <div class="fi" id="fiList"></div>
+          <div class="legend" style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+            <span><i style="background:linear-gradient(90deg,var(--accent),var(--accent-2))"></i>신규 Rolling·SPC</span>
+            <span><i style="background:var(--accent-2)"></i>제조지식 피처</span>
+            <span><i style="background:#3a4260"></i>원시 공정값</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-top:18px">
+        <div class="phead">
+          <div><h2>성능 향상 단계</h2><div class="sub">LightGBM 기준 · 불균형 처리 → 임계값 최적화 → Rolling·SPC 피처</div></div>
+        </div>
+        <div class="grid c3" id="stepRow"></div>
+      </div>
+    </section>
+
+    <!-- ───── PAGE 3 : PRIORITY ───── -->
+    <section class="page" id="page-prio">
+      <div class="grid c2" style="margin-bottom:18px">
+        <div class="panel hero">
+          <span class="tag v">핵심 성과</span>
+          <div class="big">검사량 <b>20%</b>로<br>불량 <b>62%</b> 사전 포착</div>
+          <p>전수검사 대비 검사 대상을 1/5로 줄이면서 불량의 62%를 선제 차단합니다. 무작위 추출 대비 <b style="color:var(--accent-ink)">3.1배</b> 효율이며, 상위 30%까지 넓히면 76%를 포착합니다.</p>
+        </div>
+        <div class="panel">
+          <div class="phead"><div><h2>검사 우선순위 곡선</h2><div class="sub">검사 비율 대비 누적 불량 포착률</div></div>
+            <div class="legend"><span><i style="background:var(--accent)"></i>AI 모델</span><span><i style="background:#3a4260"></i>무작위</span></div></div>
+          <div id="prioChart"></div>
+        </div>
+      </div>
+
+      <div class="panel" style="margin-bottom:18px">
+        <div class="phead"><div><h2>3단계 검사 판정</h2><div class="sub">불확실성 기반 분류 · CV holdout 2,393건</div></div></div>
+        <div class="tierbar" id="tierBar"></div>
+        <div class="grid c3" id="tierCards" style="margin-top:16px"></div>
+      </div>
+
+      <div class="grid c2e">
+        <div class="panel">
+          <div class="phead"><div><h2>불량 유형 군집 (k=3)</h2><div class="sub">SHAP 상위 피처 계층적 군집 · 유형별 대응</div></div></div>
+          <div class="grid" style="gap:12px" id="clusters"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><div><h2>오류 분석</h2><div class="sub">상위 20% 임계값 혼동행렬 · 구간별 재현율</div></div></div>
+          <div class="cm" id="cmGrid"></div>
+          <div class="grid c2e" style="margin-top:12px" id="warmRow"></div>
+        </div>
+      </div>
+    </section>
   </div>
-</main>
+</div>
 
 <script>
 const REFRESH_MS = 2000;
+let moldFilter = "all";
+let curPage = "live";
+let infoLoaded = false;
 
-async function fetchStats() {
-  const r = await fetch('/stats');
-  return r.json();
-}
+const PAGE_META = {
+  live:  {t:"실시간 모니터링", c:"공정 데이터 실시간 수집 · 불량 확률 3단계 자동 판정"},
+  model: {t:"모델 성능",      c:"4개 모델 동일 조건 비교 · 영향 변수 · 성능 향상 과정"},
+  prio:  {t:"검사 우선순위",  c:"위험도 기반 검사 순서 최적화 · 현장 활용 방안"},
+};
+const fmt = n => (n??0).toLocaleString("ko-KR");
+const pct = (v,d=1) => (v*100).toFixed(d)+"%";
+const probColor = p => p>=0.12 ? "var(--danger)" : p>=0.03 ? "var(--warn)" : "var(--ok)";
+const tierPill  = t => `<span class="pill t${t}">${["통과","재검사","즉시검사"][t]||"-"}</span>`;
 
-async function fetchQueue() {
-  const r = await fetch('/inspection-queue?limit=20');
-  return r.json();
-}
-
-function probColor(p) {
-  if (p >= 0.12) return '#f87171';
-  if (p >= 0.03) return '#fbbf24';
-  return '#4ade80';
-}
-function tierClass(t) {
-  return ['tier0','tier1','tier2'][t] || 'tier0';
-}
-function tierLabel(t) {
-  return ['✅ 통과','🟡 재검사','🔴 즉시검사'][t] || '-';
-}
-
-function updateCards(stats) {
-  document.getElementById('total').textContent     = stats.total.toLocaleString();
-  document.getElementById('immediate').textContent = stats.immediate.toLocaleString();
-  document.getElementById('review').textContent    = stats.review.toLocaleString();
-  document.getElementById('pass_').textContent     = stats.pass_.toLocaleString();
+/* count-up */
+function countUp(el,to){
+  const from = parseFloat((el.textContent||"0").replace(/,/g,""))||0;
+  if(from===to){el.textContent=fmt(to);return;}
+  const t0=performance.now(),dur=600;
+  (function step(t){
+    const k=Math.min((t-t0)/dur,1), e=1-Math.pow(1-k,3);
+    el.textContent=fmt(Math.round(from+(to-from)*e));
+    if(k<1)requestAnimationFrame(step);
+  })(performance.now());
 }
 
-function updateQueue(queueData) {
-  const tbody = document.getElementById('queue-body');
-  tbody.innerHTML = '';
-  for (const item of queueData.queue) {
-    const p = item.fail_prob;
-    const pct = Math.min(p * 500, 100);  // 0.20 → 100%
-    const tr = document.createElement('tr');
-    tr.innerHTML = `
-      <td>${item.shot_no}</td>
-      <td>${item.mold}</td>
-      <td>
-        <span class="prob-bar"><span class="prob-fill" style="width:${pct}%;background:${probColor(p)}"></span></span>
-        <span class="prob-val" style="color:${probColor(p)}">${(p*100).toFixed(1)}%</span>
-      </td>
-      <td class="${tierClass(item.tier)}">${tierLabel(item.tier)}</td>
-    `;
-    tbody.appendChild(tr);
+/* ───────── routing (해시 딥링크 지원) ───────── */
+function goPage(p){
+  if(!PAGE_META[p])p="live";
+  curPage=p;
+  document.querySelectorAll(".nav").forEach(x=>x.classList.toggle("active",x.dataset.page===p));
+  document.querySelectorAll(".page").forEach(s=>s.classList.toggle("show",s.id==="page-"+p));
+  document.getElementById("pgTitle").textContent=PAGE_META[p].t;
+  document.getElementById("pgCrumb").textContent=PAGE_META[p].c;
+  const liveOnly = p==="live";
+  document.getElementById("liveTxt").textContent = liveOnly? "실시간 갱신":"분석 스냅샷";
+  document.querySelector(".dot").style.background = liveOnly? "var(--ok)":"var(--dim)";
+  if(location.hash.slice(1)!==p) history.replaceState(null,"","#"+p);
+  if((p==="model"||p==="prio") && !infoLoaded) loadInfo();
+  if(liveOnly) refresh();
+}
+document.querySelectorAll(".nav").forEach(n=>n.addEventListener("click",()=>goPage(n.dataset.page)));
+window.addEventListener("hashchange",()=>goPage(location.hash.slice(1)));
+
+document.getElementById("moldSeg").addEventListener("click",e=>{
+  const b=e.target.closest("button"); if(!b)return;
+  moldFilter=b.dataset.mold;
+  document.querySelectorAll("#moldSeg button").forEach(x=>x.classList.toggle("on",x===b));
+  refresh();
+});
+document.getElementById("resetBtn").addEventListener("click",async()=>{
+  if(!confirm("시뮬레이션 데이터를 초기화할까요?"))return;
+  await fetch("/reset",{method:"DELETE"}); refresh();
+});
+
+/* ───────── SVG helpers ───────── */
+const W=640,H=270,P={l:40,r:16,t:16,b:28};
+function axes(ySteps,yfmt){
+  let g="";
+  for(const s of ySteps){
+    const y=P.t+(H-P.t-P.b)*(1-s);
+    g+=`<line class="grid-l" x1="${P.l}" y1="${y}" x2="${W-P.r}" y2="${y}"/>`;
+    g+=`<text x="${P.l-8}" y="${y+4}" text-anchor="end">${yfmt(s)}</text>`;
   }
+  return g;
 }
 
-function drawHistogram(probs) {
-  const canvas = document.getElementById('hist-canvas');
-  const ctx = canvas.getContext('2d');
-  canvas.width = canvas.offsetWidth;
-  canvas.height = 160;
-  ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-  if (!probs || probs.length === 0) return;
-
-  const BINS = 40;
-  const max_p = 0.5;
-  const bins = new Array(BINS).fill(0);
-  for (const p of probs) {
-    const idx = Math.min(Math.floor((p / max_p) * BINS), BINS - 1);
-    bins[idx]++;
+/* ───────── PAGE 1 : live ───────── */
+function drawStream(probs){
+  const host=document.getElementById("stream");
+  if(!probs||!probs.length){
+    host.innerHTML=`<div class="empty" style="min-height:230px">
+      <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".5"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+      <div>시뮬레이터를 실행하면 실시간 스트림이 표시됩니다</div>
+      <code>python app/simulator.py --rate 5 --limit 400</code></div>`;
+    return;
   }
-  const maxBin = Math.max(...bins);
-  const W = canvas.width / BINS;
-  const H = canvas.height - 20;
-
-  for (let i = 0; i < BINS; i++) {
-    const p_lo = (i / BINS) * max_p;
-    const h = (bins[i] / maxBin) * H;
-    const x = i * W;
-    const y = H - h + 10;
-    let color = '#4ade80';
-    if (p_lo >= 0.12) color = '#f87171';
-    else if (p_lo >= 0.03) color = '#fbbf24';
-    ctx.fillStyle = color + 'bb';
-    ctx.fillRect(x + 1, y, W - 2, h);
-  }
-
-  // x축 레이블
-  ctx.fillStyle = '#64748b';
-  ctx.font = '10px sans-serif';
-  for (let v of [0, 0.1, 0.2, 0.3, 0.4, 0.5]) {
-    const x = (v / max_p) * canvas.width;
-    ctx.fillText((v * 100).toFixed(0) + '%', x, canvas.height - 2);
-  }
+  const maxP=0.4, n=probs.length, iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const X=i=> P.l + iw*(n<=1?0:i/(n-1));
+  const Y=p=> P.t + ih*(1-Math.min(p,maxP)/maxP);
+  // threshold zones
+  const zone=(lo,hi,col)=>`<rect x="${P.l}" y="${Y(hi)}" width="${iw}" height="${Y(lo)-Y(hi)}" fill="${col}"/>`;
+  let pts=probs.map((p,i)=>`${X(i)},${Y(p)}`).join(" ");
+  let area=`${P.l},${Y(0)} ${pts} ${X(n-1)},${Y(0)}`;
+  host.innerHTML=`<svg viewBox="0 0 ${W} ${H}" width="100%" preserveAspectRatio="none" style="height:230px">
+    <defs>
+      <linearGradient id="st" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent-2)"/></linearGradient>
+      <linearGradient id="stf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(124,139,255,.42)"/><stop offset="1" stop-color="rgba(124,139,255,0)"/></linearGradient>
+    </defs>
+    ${zone(0,0.03,"rgba(47,211,160,.05)")}
+    ${zone(0.03,0.12,"rgba(255,178,36,.05)")}
+    ${zone(0.12,maxP,"rgba(255,93,122,.06)")}
+    ${axes([0,.25,.5,.75,1].map(s=>s),s=>Math.round(s*maxP*100)+"%")}
+    <polygon points="${area}" fill="url(#stf)"/>
+    <polyline points="${pts}" fill="none" stroke="url(#st)" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>
+  </svg>`;
 }
 
-async function refresh() {
-  try {
-    const [stats, queueData] = await Promise.all([fetchStats(), fetchQueue()]);
-    updateCards(stats);
-    updateQueue(queueData);
-    drawHistogram(stats.recent_probs);
-  } catch(e) {
-    // 서버 미시작 상태 — 조용히 무시
-  }
+async function refresh(){
+  if(curPage!=="live")return;
+  try{
+    const [stats,q]=await Promise.all([
+      fetch("/stats").then(r=>r.json()),
+      fetch("/inspection-queue?limit=40").then(r=>r.json())
+    ]);
+    countUp(document.getElementById("k-total"),stats.total||0);
+    countUp(document.getElementById("k-imm"),stats.immediate||0);
+    countUp(document.getElementById("k-rev"),stats.review||0);
+    countUp(document.getElementById("k-pass"),stats.pass_||0);
+    document.getElementById("s-cn7").textContent=fmt(stats.cn7_total||0);
+    document.getElementById("s-rg3").textContent=fmt(stats.rg3_total||0);
+    drawStream(stats.recent_probs);
+
+    let rows=(q.queue||[]).filter(r=>moldFilter==="all"||r.mold===moldFilter);
+    const body=document.getElementById("q-body"), emp=document.getElementById("q-empty");
+    document.getElementById("q-cnt").textContent=fmt(rows.length)+"건";
+    if(!rows.length){body.innerHTML="";emp.style.display="flex";}
+    else{
+      emp.style.display="none";
+      body.innerHTML=rows.slice(0,20).map(r=>{
+        const p=r.fail_prob, w=Math.min(p*500,100), c=probColor(p);
+        return `<tr>
+          <td class="mono">#${r.shot_no}</td>
+          <td><span class="mold">${r.mold}</span></td>
+          <td><div style="display:flex;align-items:center;gap:9px">
+            <div class="bar"><i style="width:${w}%;background:${c}"></i></div>
+            <span class="mono" style="color:${c}">${pct(p)}</span></div></td>
+          <td style="text-align:right">${tierPill(r.tier)}</td>
+        </tr>`;
+      }).join("");
+    }
+  }catch(e){/* 서버 준비 전 — 무시 */}
 }
 
-refresh();
-setInterval(refresh, REFRESH_MS);
+/* ───────── PAGE 2 & 3 : static analysis ───────── */
+async function loadInfo(){
+  let d; try{ d=await fetch("/model-info").then(r=>r.json()); }catch(e){return;}
+  if(!d||!d.metrics)return; infoLoaded=true;
+
+  // metric hero cards
+  const m=d.metrics;
+  const up=(a,b)=>`+${Math.round((a/b-1)*100)}%`;
+  document.getElementById("metricRow").innerHTML=[
+    {k:"F1-score",v:m.f1.toFixed(3),d:`베이스라인 ${up(m.f1,m.f1_baseline)}`},
+    {k:"PR-AUC",v:m.pr_auc.toFixed(3),d:`무작위 대비 14.3배`},
+    {k:"Recall",v:pct(m.recall),d:"불량 포착 비율",n:1},
+    {k:"Precision",v:pct(m.precision),d:"검사 적중률",n:1},
+    {k:"Brier",v:m.brier.toFixed(3),d:"확률 보정 최상",n:1},
+  ].map(x=>`<div class="metric"><div class="k">${x.k}</div><div class="v">${x.v}</div><div class="d ${x.n?'n':''}">${x.d}</div></div>`).join("");
+
+  drawCompare(d.models);
+  drawFI(d.feature_importance);
+
+  document.getElementById("stepRow").innerHTML=d.feature_steps.map((s,i)=>`
+    <div class="stat"><div class="l">${i+1}. ${s.label}</div>
+      <div class="n">F1 ${s.f1.toFixed(3)}</div>
+      <div style="font-size:.72rem;color:var(--muted);margin-top:4px">PR-AUC ${s.pr_auc.toFixed(3)}</div></div>`).join("");
+
+  drawPrio(d.priority_curve,d.priority_points);
+  drawTiers(d.tiers,d.dataset);
+  document.getElementById("clusters").innerHTML=d.clusters.map(c=>`
+    <div class="cl"><div class="badge"></div>
+      <div class="ty">유형 ${c.type} · ${c.n}건</div>
+      <div class="nm">${c.label}</div>
+      <div class="ft">${c.feature}</div>
+      <div class="ac">${c.action}</div></div>`).join("");
+
+  const cf=d.confusion;
+  document.getElementById("cmGrid").innerHTML=`
+    <div class="tp"><div class="lb">정탐 TP</div><div class="num">${cf.tp}</div></div>
+    <div class="fn"><div class="lb">미탐 FN</div><div class="num">${cf.fn}</div></div>
+    <div class="fp"><div class="lb">오탐 FP</div><div class="num">${cf.fp}</div></div>
+    <div class="tn"><div class="lb">정상통과 TN</div><div class="num">${fmt(cf.tn)}</div></div>`;
+  document.getElementById("warmRow").innerHTML=d.warmup.map(w=>`
+    <div class="stat"><div class="l">${w.seg} Recall</div><div class="n">${pct(w.recall,0)}</div></div>`).join("");
+}
+
+function drawCompare(models){
+  const iw=W-P.l-P.r, ih=H-P.t-P.b, g=iw/models.length;
+  let s=axes([0,.1,.2,.3,.4],v=>v.toFixed(1));
+  models.forEach((m,i)=>{
+    const cx=P.l+g*i+g/2, bw=g*0.26, gap=bw*0.6;
+    const yf=v=>P.t+ih*(1-v/0.4), h=v=>ih*(v/0.4);
+    const fin=m.role.includes("최종");
+    s+=`<rect class="barsZ" style="animation-delay:${i*.08}s" x="${cx-bw-gap/2}" y="${yf(m.f1)}" width="${bw}" height="${h(m.f1)}" rx="4" fill="${fin?'url(#gf)':'url(#gf2)'}"/>`;
+    s+=`<rect class="barsZ" style="animation-delay:${i*.08+.04}s" x="${cx+gap/2}" y="${yf(m.pr_auc)}" width="${bw}" height="${h(m.pr_auc)}" rx="4" fill="#3a4260"/>`;
+    s+=`<text x="${cx}" y="${yf(m.f1)-7}" text-anchor="middle" style="fill:${fin?'var(--accent-ink)':'var(--muted)'};font-weight:800">${m.f1.toFixed(3)}</text>`;
+    s+=`<text x="${cx}" y="${H-P.b+16}" text-anchor="middle" style="font-weight:${fin?700:500};fill:${fin?'var(--text)':'var(--dim)'}">${m.name}</text>`;
+    if(fin)s+=`<text x="${cx}" y="${H-P.b+27}" text-anchor="middle" style="fill:var(--accent-ink);font-size:9px;font-weight:800">★ 최종</text>`;
+  });
+  document.getElementById("cmpChart").innerHTML=`<svg viewBox="0 0 ${W} ${H+8}" width="100%">
+    <defs><linearGradient id="gf" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent-2)"/></linearGradient>
+    <linearGradient id="gf2" x1="0" y1="1" x2="0" y2="0"><stop offset="0" stop-color="#4a5273"/><stop offset="1" stop-color="#5b6788"/></linearGradient></defs>${s}</svg>`;
+}
+
+function drawFI(fi){
+  if(!fi||!fi.length){document.getElementById("fiList").innerHTML='<div class="empty" style="min-height:120px">피처 중요도 계산 불가</div>';return;}
+  const col=g=>g==="rolling"?"linear-gradient(90deg,var(--accent),var(--accent-2))":g==="domain"?"var(--accent-2)":"#3a4260";
+  document.getElementById("fiList").innerHTML=fi.map((f,i)=>`
+    <div class="row">
+      <div class="nm" title="${f.name}">${i+1}. ${f.label}</div>
+      <div class="track"><i style="width:${(f.rel*100).toFixed(0)}%;background:${col(f.group)};animation-delay:${i*.05}s"></i></div>
+      <div class="vv">${f.value.toFixed(3)}</div>
+    </div>`).join("");
+}
+
+function drawPrio(curve,pts){
+  const iw=W-P.l-P.r, ih=H-P.t-P.b;
+  const X=p=>P.l+iw*(p/100), Y=c=>P.t+ih*(1-c);
+  let s=axes([0,.25,.5,.75,1],v=>Math.round(v*100)+"%");
+  for(const x of [0,20,40,60,80,100])
+    s+=`<text x="${X(x)}" y="${H-P.b+16}" text-anchor="middle">${x}%</text>`;
+  // random diagonal
+  s+=`<line x1="${X(0)}" y1="${Y(0)}" x2="${X(100)}" y2="${Y(1)}" stroke="#3a4260" stroke-width="1.6" stroke-dasharray="5 5"/>`;
+  // model line + area
+  const line=curve.map(p=>`${X(p.pct)},${Y(p.capture)}`).join(" ");
+  const area=`${X(0)},${Y(0)} ${line} ${X(100)},${Y(0)}`;
+  s+=`<polygon points="${area}" fill="url(#pf)"/>`;
+  s+=`<polyline class="draw" points="${line}" fill="none" stroke="url(#pl)" stroke-width="2.6" stroke-linejoin="round"/>`;
+  // markers
+  for(const k of ["20","30"]){
+    const x=X(+k), y=Y(pts[k]);
+    s+=`<circle cx="${x}" cy="${y}" r="4.5" fill="var(--accent-2)" stroke="#070810" stroke-width="2"/>`;
+    s+=`<text x="${x+8}" y="${y-6}" style="fill:var(--text);font-weight:800">${Math.round(pts[k]*100)}%</text>`;
+    s+=`<line x1="${x}" y1="${y}" x2="${x}" y2="${Y(0)}" stroke="var(--accent-2)" stroke-width="1" stroke-dasharray="3 3" opacity=".4"/>`;
+  }
+  document.getElementById("prioChart").innerHTML=`<svg viewBox="0 0 ${W} ${H+8}" width="100%">
+    <defs><linearGradient id="pl" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="var(--accent)"/><stop offset="1" stop-color="var(--accent-2)"/></linearGradient>
+    <linearGradient id="pf" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="rgba(124,139,255,.3)"/><stop offset="1" stop-color="rgba(124,139,255,0)"/></linearGradient></defs>${s}</svg>`;
+}
+
+function drawTiers(tiers,ds){
+  const widths={2:5,1:15,0:80};
+  document.getElementById("tierBar").innerHTML=tiers.map(t=>
+    `<div class="tseg${t.level}" style="flex:${widths[t.level]}">${t.level===0?'통과 80%':t.range.replace('상위 ','')}</div>`).join("");
+  document.getElementById("tierCards").innerHTML=tiers.map(t=>{
+    const cls=["grn","yel","red"][t.level];
+    return `<div class="kpi ${cls}" style="padding:16px">
+      <div class="lab"><i></i>${t.name} <span style="color:var(--dim);font-weight:600">· ${t.range}</span></div>
+      <div class="val" style="font-size:1.7rem">${fmt(t.count)}건</div>
+      <div class="foot">불량 ${t.defects}개 포착 · 적중률 ${pct(t.precision)}</div></div>`;
+  }).join("");
+}
+
+goPage(location.hash.slice(1)||"live");
+setInterval(refresh,REFRESH_MS);
 </script>
 </body>
 </html>

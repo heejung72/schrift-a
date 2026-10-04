@@ -1,0 +1,26 @@
+# 데이터 (용량 크고 공개 불가)
+data/
+
+# 압축 파일
+*.zip
+
+# 참고자료
+references/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# DB
+*.db
+
+# macOS
+.DS_Store
+
+# IDE
+.idea/

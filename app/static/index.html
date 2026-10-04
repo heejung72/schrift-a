@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>사출성형 불량 예측 대시보드</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Noto Sans KR', sans-serif; background: #0f172a; color: #e2e8f0; }
+  header {
+    background: linear-gradient(90deg, #1e293b, #0f172a);
+    padding: 16px 24px; border-bottom: 1px solid #334155;
+    display: flex; align-items: center; gap: 12px;
+  }
+  header h1 { font-size: 1.2rem; font-weight: 700; color: #f1f5f9; }
+  header .subtitle { font-size: 0.8rem; color: #94a3b8; }
+  .badge { background: #3b82f6; color: #fff; padding: 2px 8px;
+           border-radius: 9999px; font-size: 0.7rem; }
+  main { padding: 20px 24px; display: grid; gap: 20px; }
+
+  /* 요약 카드 */
+  .cards { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .card {
+    background: #1e293b; border-radius: 10px; padding: 16px;
+    border: 1px solid #334155;
+  }
+  .card .label { font-size: 0.72rem; color: #94a3b8; text-transform: uppercase; letter-spacing: .05em; }
+  .card .value { font-size: 2rem; font-weight: 700; margin-top: 4px; }
+  .card.red   .value { color: #f87171; }
+  .card.yellow .value { color: #fbbf24; }
+  .card.green .value { color: #4ade80; }
+  .card.blue  .value { color: #60a5fa; }
+
+  /* 2단 레이아웃 */
+  .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* 패널 */
+  .panel {
+    background: #1e293b; border-radius: 10px; padding: 16px;
+    border: 1px solid #334155;
+  }
+  .panel h2 { font-size: 0.9rem; color: #94a3b8; margin-bottom: 12px; }
+
+  /* 테이블 */
+  table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+  th { background: #0f172a; color: #64748b; padding: 8px 10px;
+       text-align: left; font-weight: 600; border-bottom: 1px solid #334155; }
+  td { padding: 8px 10px; border-bottom: 1px solid #1e293b; }
+  tr:hover td { background: #263248; }
+  .tier2 { color: #f87171; font-weight: 700; }
+  .tier1 { color: #fbbf24; font-weight: 600; }
+  .tier0 { color: #4ade80; }
+
+  /* 확률 바 */
+  .prob-bar { background: #334155; border-radius: 4px; height: 6px; width: 120px; display: inline-block; vertical-align: middle; }
+  .prob-fill { height: 6px; border-radius: 4px; }
+  .prob-val { font-size: 0.8rem; margin-left: 6px; }
+
+  /* 히스토그램 */
+  #hist-canvas { width: 100%; height: 160px; }
+
+  /* 상태 표시 */
+  #status { font-size: 0.75rem; color: #475569; text-align: right; }
+  .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%;
+         background: #4ade80; margin-right: 6px; animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>사출성형 불량 예측 시스템 <span class="badge">LIVE</span></h1>
+    <div class="subtitle">Rolling EWMA + SPC + Ensemble(RF+LGB) | 검사 우선순위 자동 결정</div>
+  </div>
+  <div style="margin-left:auto" id="status"><span class="dot"></span>자동 갱신 중</div>
+</header>
+
+<main>
+  <!-- 요약 카드 -->
+  <div class="cards">
+    <div class="card blue">
+      <div class="label">총 처리 샷</div>
+      <div class="value" id="total">0</div>
+    </div>
+    <div class="card red">
+      <div class="label">🔴 즉시 검사</div>
+      <div class="value" id="immediate">0</div>
+    </div>
+    <div class="card yellow">
+      <div class="label">🟡 재검사</div>
+      <div class="value" id="review">0</div>
+    </div>
+    <div class="card green">
+      <div class="label">✅ 통과</div>
+      <div class="value" id="pass_">0</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <!-- 검사 대기열 -->
+    <div class="panel">
+      <h2>검사 대기열 (위험도 순)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Shot</th>
+            <th>금형</th>
+            <th>불량 확률</th>
+            <th>판정</th>
+          </tr>
+        </thead>
+        <tbody id="queue-body"></tbody>
+      </table>
+    </div>
+
+    <!-- 최근 불량 확률 히스토그램 -->
+    <div class="panel">
+      <h2>최근 200개 샷 불량 확률 분포</h2>
+      <canvas id="hist-canvas"></canvas>
+      <div style="margin-top:12px; font-size:0.78rem; color:#94a3b8;">
+        <span style="color:#f87171">■</span> 즉시검사 (≥0.12) &nbsp;
+        <span style="color:#fbbf24">■</span> 재검사 (0.03~0.12) &nbsp;
+        <span style="color:#4ade80">■</span> 통과 (&lt;0.03)
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+const REFRESH_MS = 2000;
+
+async function fetchStats() {
+  const r = await fetch('/stats');
+  return r.json();
+}
+
+async function fetchQueue() {
+  const r = await fetch('/inspection-queue?limit=20');
+  return r.json();
+}
+
+function probColor(p) {
+  if (p >= 0.12) return '#f87171';
+  if (p >= 0.03) return '#fbbf24';
+  return '#4ade80';
+}
+function tierClass(t) {
+  return ['tier0','tier1','tier2'][t] || 'tier0';
+}
+function tierLabel(t) {
+  return ['✅ 통과','🟡 재검사','🔴 즉시검사'][t] || '-';
+}
+
+function updateCards(stats) {
+  document.getElementById('total').textContent     = stats.total.toLocaleString();
+  document.getElementById('immediate').textContent = stats.immediate.toLocaleString();
+  document.getElementById('review').textContent    = stats.review.toLocaleString();
+  document.getElementById('pass_').textContent     = stats.pass_.toLocaleString();
+}
+
+function updateQueue(queueData) {
+  const tbody = document.getElementById('queue-body');
+  tbody.innerHTML = '';
+  for (const item of queueData.queue) {
+    const p = item.fail_prob;
+    const pct = Math.min(p * 500, 100);  // 0.20 → 100%
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${item.shot_no}</td>
+      <td>${item.mold}</td>
+      <td>
+        <span class="prob-bar"><span class="prob-fill" style="width:${pct}%;background:${probColor(p)}"></span></span>
+        <span class="prob-val" style="color:${probColor(p)}">${(p*100).toFixed(1)}%</span>
+      </td>
+      <td class="${tierClass(item.tier)}">${tierLabel(item.tier)}</td>
+    `;
+    tbody.appendChild(tr);
+  }
+}
+
+function drawHistogram(probs) {
+  const canvas = document.getElementById('hist-canvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = canvas.offsetWidth;
+  canvas.height = 160;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  if (!probs || probs.length === 0) return;
+
+  const BINS = 40;
+  const max_p = 0.5;
+  const bins = new Array(BINS).fill(0);
+  for (const p of probs) {
+    const idx = Math.min(Math.floor((p / max_p) * BINS), BINS - 1);
+    bins[idx]++;
+  }
+  const maxBin = Math.max(...bins);
+  const W = canvas.width / BINS;
+  const H = canvas.height - 20;
+
+  for (let i = 0; i < BINS; i++) {
+    const p_lo = (i / BINS) * max_p;
+    const h = (bins[i] / maxBin) * H;
+    const x = i * W;
+    const y = H - h + 10;
+    let color = '#4ade80';
+    if (p_lo >= 0.12) color = '#f87171';
+    else if (p_lo >= 0.03) color = '#fbbf24';
+    ctx.fillStyle = color + 'bb';
+    ctx.fillRect(x + 1, y, W - 2, h);
+  }
+
+  // x축 레이블
+  ctx.fillStyle = '#64748b';
+  ctx.font = '10px sans-serif';
+  for (let v of [0, 0.1, 0.2, 0.3, 0.4, 0.5]) {
+    const x = (v / max_p) * canvas.width;
+    ctx.fillText((v * 100).toFixed(0) + '%', x, canvas.height - 2);
+  }
+}
+
+async function refresh() {
+  try {
+    const [stats, queueData] = await Promise.all([fetchStats(), fetchQueue()]);
+    updateCards(stats);
+    updateQueue(queueData);
+    drawHistogram(stats.recent_probs);
+  } catch(e) {
+    // 서버 미시작 상태 — 조용히 무시
+  }
+}
+
+refresh();
+setInterval(refresh, REFRESH_MS);
+</script>
+</body>
+</html>

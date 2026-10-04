@@ -5,6 +5,7 @@
 - 검증 전략 1: 연속 중복 구간을 같은 fold에 배정 (누수 방지)
 - 검증 전략 2: 금형 교차검증 (cn7 학습→rg3 평가, 반대)
 - 임계값: validation fold에서 F1 최대화 임계값을 각 fold마다 탐색
+- 앙상블: RF+LGB 소프트 보팅 (LR 제외 — 약한 모델이 앙상블 품질 저하)
 """
 
 import sys, os
@@ -33,18 +34,25 @@ def make_models():
     lr = LogisticRegression(class_weight="balanced", max_iter=1000, random_state=SEED, C=0.1)
     rf = RandomForestClassifier(n_estimators=300, class_weight="balanced",
                                  min_samples_leaf=2, n_jobs=-1, random_state=SEED)
-    lgbm = lgb.LGBMClassifier(n_estimators=500, learning_rate=0.05, num_leaves=31,
-                               min_child_samples=5,
-                               scale_pos_weight=55,  # ≈ 양품/불량 비율
-                               n_jobs=-1, random_state=SEED, verbose=-1)
+    lgbm = lgb.LGBMClassifier(
+        n_estimators=1000, learning_rate=0.03, num_leaves=31,
+        min_child_samples=3,      # 불량 42개에 맞게 완화
+        scale_pos_weight=55,      # ≈ 양품/불량 비율
+        reg_alpha=0.1, reg_lambda=1.0,
+        feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
+        n_jobs=-1, random_state=SEED, verbose=-1,
+    )
     ensemble = VotingClassifier(
         estimators=[
-            ("lr",   LogisticRegression(class_weight="balanced", max_iter=1000, C=0.1, random_state=SEED)),
             ("rf",   RandomForestClassifier(n_estimators=300, class_weight="balanced",
                                             min_samples_leaf=2, n_jobs=-1, random_state=SEED)),
-            ("lgbm", lgb.LGBMClassifier(n_estimators=500, learning_rate=0.05,
-                                         scale_pos_weight=55, n_jobs=-1,
-                                         random_state=SEED, verbose=-1)),
+            ("lgbm", lgb.LGBMClassifier(
+                n_estimators=1000, learning_rate=0.03, num_leaves=31,
+                min_child_samples=3, scale_pos_weight=55,
+                reg_alpha=0.1, reg_lambda=1.0,
+                feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
+                n_jobs=-1, random_state=SEED, verbose=-1,
+            )),
         ],
         voting="soft"
     )
@@ -52,7 +60,7 @@ def make_models():
         "로지스틱회귀(베이스라인)": lr,
         "RandomForest":             rf,
         "LightGBM":                 lgbm,
-        "앙상블(LR+RF+LGB)":         ensemble,
+        "앙상블(RF+LGB)":            ensemble,
     }
 
 
@@ -145,6 +153,64 @@ def print_results_table(results: dict):
     print("=" * 90)
 
 
+def collect_cv_predictions(X: pd.DataFrame, y: pd.Series, g: pd.Series,
+                            lab_df: pd.DataFrame) -> pd.DataFrame:
+    """LightGBM CV holdout 예측을 수집해 반환한다 (FN/FP 분석용)."""
+    lgbm = lgb.LGBMClassifier(
+        n_estimators=1000, learning_rate=0.03, num_leaves=31,
+        min_child_samples=3, scale_pos_weight=55,
+        reg_alpha=0.1, reg_lambda=1.0,
+        feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
+        n_jobs=-1, random_state=SEED, verbose=-1,
+    )
+    all_probs = np.zeros(len(y))
+    all_counts = np.zeros(len(y))
+
+    for repeat in range(N_REPEATS):
+        sgkf = StratifiedGroupKFold(n_splits=N_SPLITS, shuffle=True,
+                                    random_state=SEED + repeat)
+        for train_idx, val_idx in sgkf.split(X, y, groups=g):
+            lgbm.fit(X.iloc[train_idx], y.iloc[train_idx])
+            y_prob = lgbm.predict_proba(X.iloc[val_idx])[:, 1]
+            all_probs[val_idx] += y_prob
+            all_counts[val_idx] += 1
+
+    avg_prob = np.where(all_counts > 0, all_probs / all_counts, 0)
+
+    # 전체 임계값 0.08 기준 (PR-AUC 최적 근사)
+    threshold = np.percentile(avg_prob, 92)  # 상위 8%
+    y_pred = (avg_prob >= threshold).astype(int)
+
+    def error_type(true, pred):
+        if true == 1 and pred == 1:
+            return "TP"
+        elif true == 1 and pred == 0:
+            return "FN"
+        elif true == 0 and pred == 1:
+            return "FP"
+        else:
+            return "TN"
+
+    # 워밍업 구간 표시 (cn7: shot_no ≤ 120, rg3: shot_no ≤ 1400)
+    shot_no = lab_df["Unnamed: 0"].values
+    mold = lab_df["mold"].values
+    warmup = np.where(
+        (mold == "cn7") & (shot_no <= 120), True,
+        np.where((mold == "rg3") & (shot_no <= 1400), True, False)
+    )
+
+    df_cv = pd.DataFrame({
+        "shot_no":    shot_no,
+        "mold":       mold,
+        "y_true":     y.values,
+        "y_prob":     avg_prob.round(4),
+        "y_pred":     y_pred,
+        "warmup":     warmup,
+        "error_type": [error_type(t, p) for t, p in zip(y.values, y_pred)],
+    })
+    return df_cv
+
+
 if __name__ == "__main__":
     print("데이터 로드 중...")
     lab = load_labeled()
@@ -160,13 +226,54 @@ if __name__ == "__main__":
 
     cross_results = evaluate_cross_mold(X, y, mold_enc)
 
-    # 최종 LightGBM 전체 데이터로 학습 후 저장
-    print("\n최종 LightGBM 전체 학습 중...")
-    final_lgbm = lgb.LGBMClassifier(n_estimators=500, learning_rate=0.05,
-                                     scale_pos_weight=55, n_jobs=-1,
-                                     random_state=SEED, verbose=-1)
-    final_lgbm.fit(X, y)
+    # CV holdout 예측 저장 (3장 분석용)
+    print("\nCV holdout 예측 수집 중...")
+    df_cv = collect_cv_predictions(X, y, g, lab)
     os.makedirs("outputs", exist_ok=True)
+    df_cv.to_csv("outputs/cv_predictions.csv", index=False)
+    n_tp = (df_cv["error_type"] == "TP").sum()
+    n_fn = (df_cv["error_type"] == "FN").sum()
+    n_fp = (df_cv["error_type"] == "FP").sum()
+    print(f"CV 예측 저장: outputs/cv_predictions.csv  TP={n_tp} FN={n_fn} FP={n_fp}")
+
+    # 최종 LightGBM 전체 학습 (SHAP 분석용)
+    print("\n최종 LightGBM 전체 학습 중 (SHAP 분석용)...")
+    final_lgbm = lgb.LGBMClassifier(
+        n_estimators=1000, learning_rate=0.03, num_leaves=31,
+        min_child_samples=3, scale_pos_weight=55,
+        reg_alpha=0.1, reg_lambda=1.0,
+        feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
+        n_jobs=-1, random_state=SEED, verbose=-1,
+    )
+    final_lgbm.fit(X, y)
     with open("outputs/final_lgbm.pkl", "wb") as f:
         pickle.dump(final_lgbm, f)
-    print("모델 저장: outputs/final_lgbm.pkl")
+    print("LightGBM 저장: outputs/final_lgbm.pkl")
+
+    # 최종 앙상블 (RF+LGB) 전체 학습 후 저장 — 예측·앱 사용
+    print("\n최종 앙상블(RF+LGB) 전체 학습 중...")
+    from sklearn.ensemble import VotingClassifier
+    final_ensemble = VotingClassifier(
+        estimators=[
+            ("rf",   RandomForestClassifier(n_estimators=300, class_weight="balanced",
+                                            min_samples_leaf=2, n_jobs=-1, random_state=SEED)),
+            ("lgbm", lgb.LGBMClassifier(
+                n_estimators=1000, learning_rate=0.03, num_leaves=31,
+                min_child_samples=3, scale_pos_weight=55,
+                reg_alpha=0.1, reg_lambda=1.0,
+                feature_fraction=0.8, bagging_fraction=0.8, bagging_freq=5,
+                n_jobs=-1, random_state=SEED, verbose=-1,
+            )),
+        ],
+        voting="soft",
+    )
+    final_ensemble.fit(X, y)
+    with open("outputs/final_model.pkl", "wb") as f:
+        pickle.dump(final_ensemble, f)
+    print("앙상블 저장: outputs/final_model.pkl")
+
+    # 피처 컬럼 목록 저장 (FastAPI에서 동일 컬럼 순서 보장)
+    import json
+    with open("outputs/feature_columns.json", "w") as f:
+        json.dump(list(X.columns), f)
+    print(f"피처 컬럼 저장: outputs/feature_columns.json ({len(X.columns)}개)")

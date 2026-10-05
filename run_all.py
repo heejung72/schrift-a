@@ -6,10 +6,11 @@
 
 import subprocess, sys, time
 
+PY = sys.executable  # 현재 인터프리터(가상환경)를 그대로 사용 — 재현성 보장
 STEPS = [
-    ("1장·2장: 피처 엔지니어링 + 모델 학습", ["python", "-m", "src.train"]),
-    ("3장: SHAP·군집화·오류분석",              ["python", "-m", "src.analysis"]),
-    ("예측: unlabeled 예측 파일 생성",          ["python", "-m", "src.predict"]),
+    ("1장·2장: 피처 엔지니어링 + 모델 학습", [PY, "-m", "src.train"]),
+    ("3장: SHAP·군집화·오류분석",              [PY, "-m", "src.analysis"]),
+    ("예측: unlabeled 예측 파일 생성",          [PY, "-m", "src.predict"]),
 ]
 
 

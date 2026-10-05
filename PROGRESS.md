@@ -39,19 +39,26 @@
 - [x] 해시 딥링크(#live/#model/#prio) + 대시보드 스크린샷 3장 (outputs/dashboard_*.png)
 - [x] 2·3페이지는 시뮬레이터 없이도 /model-info만으로 완전히 채워짐 (캡처 용이)
 
-## 10/06 내일 할 일
+## 10/06 완료 (마무리 작업)
 
-### 오전 — 보고서 초안
-- [ ] report_notes/ch4.md (현장 활용방안 — 3단계 판정, 불량 유형별 대응)
-- [ ] report_notes/ch5.md (창의성 — SPC+ML 결합, Rolling 피처, 군집화 연결)
-- [ ] report_notes/ch6.md (코드 재현성 — run_all.py 실행 설명)
-- [ ] 보고서 본문 초안 (hwpx 붙여넣기용 텍스트)
-- [x] 대시보드 스크린샷 3장 자동 생성 완료 (outputs/dashboard_1~3_*.png) — 필요시 재촬영만
+### 보고서 초안
+- [x] report_notes/ch4.md (현장 활용방안 — 사전경보·우선순위·공정점검·대시보드)
+- [x] report_notes/ch5.md (창의성 — SPC+ML 결합/불균형/앙상블/보정/3단계/군집, 2·3장 연결)
+- [x] report_notes/ch6.md (코드 재현성 — run_all.py·시드·버전고정·폴더구조)
+- [x] 보고서 본문 초안 통합본 (report_notes/보고서_본문_초안.md, hwpx 붙여넣기용 6장 전체)
+- [x] 대시보드 스크린샷 3장 자동 생성 (outputs/dashboard_1~3_*.png)
 
-### 오후 — 마무리
-- [ ] README.md 작성 (실행 환경, 실행 순서, 소요 시간)
-- [ ] 코드 정리 및 재현성 확인 (run_all.py 처음부터 실행)
-- [ ] PROGRESS.md 최종 업데이트
+### 마무리
+- [x] README.md 작성 (핵심결과·실행환경·실행순서·폴더구조·재현성)
+- [x] run_all.py 서브프로세스를 sys.executable로 변경 (venv 혼입 방지)
+- [~] 재현성 확인 (run_all.py 처음부터 실행 중 — CV 수치 LR/RF/LGB 일치 확인됨)
+- [x] PROGRESS.md 갱신
+
+### 남은 일 (사용자 몫)
+- [ ] 보고서_본문_초안.md → hwpx 양식에 붙여넣고 그래프·캡처 삽입 후 PDF 저장
+- [ ] 발표자료 PPT·PDF
+- [ ] 만족도 설문 캡처 첨부
+- [ ] 참가 계획서 내용과 본문 대조 (CLAUDE.md 3장 주의)
 
 ---
 

@@ -51,7 +51,7 @@
 ### 마무리
 - [x] README.md 작성 (핵심결과·실행환경·실행순서·폴더구조·재현성)
 - [x] run_all.py 서브프로세스를 sys.executable로 변경 (venv 혼입 방지)
-- [~] 재현성 확인 (run_all.py 처음부터 실행 중 — CV 수치 LR/RF/LGB 일치 확인됨)
+- [x] 재현성 확인 완료 — run_all.py 8.0분, 전 수치 일치, cv_predictions.csv md5 완전 일치
 - [x] PROGRESS.md 갱신
 
 ### 남은 일 (사용자 몫)

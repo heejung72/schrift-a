@@ -69,7 +69,7 @@
 - [ ] 발표자료 PPT·PDF
 - [ ] 만족도 설문 캡처 첨부
 - [ ] 참가 계획서 내용과 본문 대조 (CLAUDE.md 3장 주의)
-- [ ] (권장) 최종 제출 전 `python run_all.py` 1회 — rules·advanced 포함 5단계 재현 확인
+- [x] 5단계 재현 검증 완료 — run_all.py 19.0분, process_rules·advanced_metrics·cv_predictions 3개 md5 완전 일치
 
 ---
 

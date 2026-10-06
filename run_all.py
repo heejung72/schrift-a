@@ -10,6 +10,8 @@ PY = sys.executable  # 현재 인터프리터(가상환경)를 그대로 사용 
 STEPS = [
     ("1장·2장: 피처 엔지니어링 + 모델 학습", [PY, "-m", "src.train"]),
     ("3장: SHAP·군집화·오류분석",              [PY, "-m", "src.analysis"]),
+    ("3·4·5장: 공정 조건 규칙 + 구분불가 증명", [PY, "-m", "src.rules"]),
+    ("5·6장: 보정·불확실성·드리프트 심화분석",   [PY, "-m", "src.advanced"]),
     ("예측: unlabeled 예측 파일 생성",          [PY, "-m", "src.predict"]),
 ]
 

@@ -16,8 +16,9 @@
 | ewma_resid_norm | 6개 변수 EWMA 잔차 L2 크기 (복합 이탈도) |
 | spc_violation_count | rolling 3-sigma 한계 초과 변수 수 (SPC 결합) |
 
-- **SPC 결합 배경**: 전통 제조업의 통계적 공정관리(SPC)와 ML을 결합. SPC 신호가 높고 ML 확률도 높을 때 즉시 검사.
+- **SPC 결합 배경**: 전통 제조업의 통계적 공정관리(SPC)와 ML을 결합. EWMA 관리도 잔차가 핵심.
 - **금형별 독립 계산**: cn7/rg3 각각 독립적으로 rolling 계산하여 금형 간 스케일 차이 방지.
+- **정직성 주의**: 이산형 `spc_violation_count`(3σ 위반 횟수)는 labeled 전 구간에서 0으로 미발동(3.1절). 따라서 실제 SPC 신호는 **연속형 EWMA 잔차(ewma_resid_norm, SHAP 2위)**가 수행했다. "SPC+ML 결합"의 실체는 EWMA 관리도 ↔ ML이다.
 
 ## 2.2 모델 비교 결과 (최종, Rolling·SPC 피처 포함)
 

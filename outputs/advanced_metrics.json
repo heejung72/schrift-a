@@ -1,0 +1,100 @@
+{
+  "uncertainty": {
+    "quartiles": [
+      {
+        "band": "Q1(낮음)",
+        "n": 598,
+        "defect_rate": 0.0,
+        "defects": 0
+      },
+      {
+        "band": "Q2",
+        "n": 598,
+        "defect_rate": 0.0067,
+        "defects": 4
+      },
+      {
+        "band": "Q3",
+        "n": 598,
+        "defect_rate": 0.0217,
+        "defects": 13
+      },
+      {
+        "band": "Q4(높음)",
+        "n": 599,
+        "defect_rate": 0.0417,
+        "defects": 25
+      }
+    ],
+    "corr_defect": 0.2663
+  },
+  "uncertainty_tier": {
+    "tiers": [
+      {
+        "tier": 2,
+        "name": "즉시검사",
+        "n": 120,
+        "defects": 14,
+        "recall": 0.3333
+      },
+      {
+        "tier": 1,
+        "name": "재검사",
+        "n": 392,
+        "defects": 9,
+        "recall": 0.2143
+      },
+      {
+        "tier": 0,
+        "name": "통과",
+        "n": 1881,
+        "defects": 19,
+        "recall": 0.4524
+      }
+    ],
+    "inspect_frac": 0.214,
+    "inspect_recall": 0.5476
+  },
+  "calibration": {
+    "brier_raw": 0.01507,
+    "brier_isotonic": 0.01507,
+    "improve_pct": 0.0
+  },
+  "drift": {
+    "features": [
+      {
+        "feat": "Cushion_Position",
+        "psi": 6.712
+      },
+      {
+        "feat": "ewma_resid_norm",
+        "psi": 4.345
+      },
+      {
+        "feat": "Cycle_Time",
+        "psi": 3.753
+      },
+      {
+        "feat": "Max_Injection_Pressure",
+        "psi": 3.475
+      },
+      {
+        "feat": "Barrel_Temperature_5",
+        "psi": 2.917
+      },
+      {
+        "feat": "barrel_temp_range",
+        "psi": 1.69
+      },
+      {
+        "feat": "Plasticizing_Time_delta",
+        "psi": 1.466
+      },
+      {
+        "feat": "Clamp_Close_Time",
+        "psi": 1.323
+      }
+    ],
+    "note": "PSI<0.1 안정, 0.1~0.25 보통, >0.25 유의한 드리프트"
+  }
+}

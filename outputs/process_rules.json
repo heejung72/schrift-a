@@ -1,0 +1,143 @@
+{
+  "baseline_defect_rate": 0.0176,
+  "n_shots": 2393,
+  "n_defects": 42,
+  "rules": [
+    {
+      "id": "R1",
+      "cluster": "A",
+      "name": "복합 공정 이탈 (급변동)",
+      "cond_text": "복합 EWMA 이탈도가 상위 10% 수준 (여러 공정 변수가 동시에 최근 추세에서 벗어남)",
+      "machine": [
+        {
+          "feat": "ewma_resid_norm",
+          "op": ">=",
+          "val": 1.6811
+        }
+      ],
+      "tier": 2,
+      "action_short": "즉시 공정 정지 검토, 직전 10샷 추세·설비 상태 점검",
+      "action_long": "급변동 트리거 원인 설비 보전 이력화, 자동 정지 임계 연동",
+      "coverage": 240,
+      "defects": 14,
+      "defect_rate": 0.0583,
+      "recall": 0.3333,
+      "lift": 3.32
+    },
+    {
+      "id": "R2",
+      "cluster": "A",
+      "name": "가소화시간 급변",
+      "cond_text": "직전 shot 대비 가소화 시간이 급등 또는 급락 (상·하위 5%)",
+      "machine": [
+        {
+          "feat": "Plasticizing_Time_delta",
+          "op": "abs>=",
+          "val": 0.6734
+        }
+      ],
+      "tier": 2,
+      "action_short": "가소화 공정(스크류 회전·백압·원료 건조) 점검 후 즉시검사",
+      "action_long": "원료 수분·계량 안정화, 스크류 마모 점검 주기화",
+      "coverage": 262,
+      "defects": 12,
+      "defect_rate": 0.0458,
+      "recall": 0.2857,
+      "lift": 2.61
+    },
+    {
+      "id": "R3",
+      "cluster": "B",
+      "name": "온도편차·금형닫힘 복합",
+      "cond_text": "배럴 온도 편차 상위 20% + 금형 닫힘 시간 상위 20% 동시",
+      "machine": [
+        {
+          "feat": "barrel_temp_range",
+          "op": ">=",
+          "val": 3.1639
+        },
+        {
+          "feat": "Clamp_Close_Time",
+          "op": ">=",
+          "val": 1.0331
+        }
+      ],
+      "tier": 1,
+      "action_short": "금형 체결·형체압력 점검, 금형 온도 분포 확인 후 재검사",
+      "action_long": "금형 보전주기 단축, 형체압력 상시 모니터링, 금형별 온도 관리도 운영",
+      "coverage": 84,
+      "defects": 4,
+      "defect_rate": 0.0476,
+      "recall": 0.0952,
+      "lift": 2.71
+    }
+  ],
+  "rules_union": {
+    "coverage": 502,
+    "defects": 25,
+    "defect_rate": 0.0498,
+    "recall": 0.5952,
+    "lift": 2.84
+  },
+  "clusters": [
+    {
+      "type": "A",
+      "n": 4,
+      "label": "공정 급변동형",
+      "signature": "ewma_resid_norm 극단값(7.0)",
+      "cause": "원료 투입 변동·스크류 마모·유압 불안정 등 급격한 공정 교란",
+      "action_short": "즉시 공정 정지 검토, 직전 10샷 추세·설비 상태 점검",
+      "action_long": "급변동 트리거 원인 설비 보전 이력화, 자동 정지 임계 연동"
+    },
+    {
+      "type": "B",
+      "n": 17,
+      "label": "온도편차·금형닫힘 복합형",
+      "signature": "barrel_temp_range 2.68 + Clamp_Close_Time 1.05",
+      "cause": "금형 체결 불량·형체압력 이상 + 배럴 온도 산포 복합",
+      "action_short": "금형 체결·형체압력 점검, 금형 온도 분포 확인 후 재검사",
+      "action_long": "금형 보전주기 단축, 형체압력 상시 모니터링, 금형별 온도 관리도 운영"
+    },
+    {
+      "type": "C",
+      "n": 21,
+      "label": "배럴 온도 편차형",
+      "signature": "barrel_temp_range 2.54 + Barrel_Temperature_5",
+      "cause": "배럴 히터·열전대 이상으로 인한 구간별 온도 편차",
+      "action_short": "배럴 히터·열전대 상태 점검, 온도 안정 후 샘플 재검사",
+      "action_long": "배럴 구간별 히터 PID 재튜닝, 열전대 교정주기 관리, 편차 경보 자동화"
+    }
+  ],
+  "label_collision": {
+    "groups": 36,
+    "rows": 72,
+    "defects": 36,
+    "defect_ratio": 0.8571
+  },
+  "indistinguishable": {
+    "cond_text": "EWMA 복합 이탈도 중앙값 이하 + 가소화시간 급변 없음 (변화·추세 신호 정상)",
+    "machine": [
+      {
+        "feat": "ewma_resid_norm",
+        "op": "<=",
+        "val": 0.938
+      }
+    ],
+    "tier": 1,
+    "action_short": "측정값만으로 판별 불가 → 샘플 재검사로 미탐지 위험 분산",
+    "action_long": "비전검사·X-ray 등 측정 외 검사 축 추가 검토",
+    "coverage": 1159,
+    "defects": 8,
+    "defect_rate": 0.0069,
+    "recall": 0.1905,
+    "lift": 0.39
+  },
+  "thresholds": {
+    "ewma_p90": 1.6811,
+    "ewma_p50": 0.938,
+    "pdelta_p95": 0.6734,
+    "pdelta_p05": -0.6734,
+    "btr_p80": 3.1639,
+    "clamp_p80": 1.0331
+  }
+}

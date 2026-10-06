@@ -208,6 +208,47 @@
   @keyframes draw{to{stroke-dashoffset:0}}
   .barsZ{transform:scaleY(0);transform-origin:bottom;animation:barup .8s cubic-bezier(.2,.8,.2,1) forwards}
   @keyframes barup{to{transform:scaleY(1)}}
+
+  /* clickable queue rows */
+  tbody tr.clk{cursor:pointer}
+  tbody tr.clk:hover td{background:rgba(124,139,255,.09)}
+
+  /* ───────── shot detail drawer ───────── */
+  #drawer-ov{position:fixed;inset:0;background:rgba(3,4,10,.6);backdrop-filter:blur(3px);
+    opacity:0;pointer-events:none;transition:opacity .25s;z-index:40}
+  #drawer-ov.open{opacity:1;pointer-events:auto}
+  #drawer{position:fixed;top:0;right:0;height:100vh;width:min(440px,92vw);z-index:50;
+    background:linear-gradient(180deg,#0d0f1b,#090a12);border-left:1px solid var(--border-strong);
+    box-shadow:-30px 0 60px -30px rgba(0,0,0,.9);transform:translateX(100%);
+    transition:transform .32s cubic-bezier(.3,.8,.3,1);overflow-y:auto;padding:22px}
+  #drawer.open{transform:none}
+  #drawer .dh{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  #drawer .dh .x{border:0;background:var(--surface-2);color:var(--muted);width:32px;height:32px;
+    border-radius:9px;cursor:pointer;font-size:1.1rem;line-height:1}
+  #drawer .dh .x:hover{color:#fff}
+  .dbig{font-size:2.6rem;font-weight:800;letter-spacing:-.03em;line-height:1}
+  .drow{display:flex;justify-content:space-between;align-items:center;padding:11px 0;border-bottom:1px solid var(--border)}
+  .drow .k{font-size:.78rem;color:var(--muted);font-weight:600}
+  .drow .v{font-size:.84rem;font-weight:700}
+  .dsec{margin-top:18px}
+  .dsec .t{font-size:.68rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--dim);margin-bottom:8px}
+  .dbox{background:var(--surface-2);border:1px solid var(--border);border-radius:12px;padding:14px;font-size:.86rem;line-height:1.55}
+  .dbox.why{border-left:3px solid var(--accent)}
+  .dbox.act{border-left:3px solid var(--ok)}
+  .rchip{display:inline-block;font-size:.68rem;font-weight:800;padding:3px 8px;border-radius:7px;
+    background:rgba(124,139,255,.16);color:var(--accent-ink);margin-right:5px}
+
+  /* ───────── guide page ───────── */
+  .rule{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:18px;box-shadow:var(--shadow)}
+  .rule .top{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .rule .id{font-size:.72rem;font-weight:800;padding:3px 9px;border-radius:7px;background:linear-gradient(135deg,var(--accent),var(--accent-2));color:#0a0a12}
+  .rule .nm{font-weight:800;font-size:1rem;letter-spacing:-.02em}
+  .rule .lift{margin-left:auto;font-size:.76rem;font-weight:800;color:var(--accent-ink)}
+  .rule .cond{font-size:.82rem;color:var(--muted);line-height:1.5}
+  .rule .mini{display:flex;gap:16px;margin:12px 0;font-size:.74rem}
+  .rule .mini b{display:block;font-size:1.05rem;color:var(--text)}
+  .rule .act{font-size:.8rem;color:var(--text);padding-top:10px;border-top:1px solid var(--border);display:flex;gap:7px}
+  .rule .act::before{content:"▸";color:var(--ok)}
 </style>
 </head>
 <body>
@@ -241,6 +282,12 @@
     <div class="nav" data-page="prio">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17c4-9 7-11 18-12"/><path d="M15 4h6v6"/></svg>
       검사 우선순위
+    </div>
+
+    <div class="nav-label">현장</div>
+    <div class="nav" data-page="guide">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+      작업자 가이드
     </div>
 
     <div class="side-foot">
@@ -383,19 +430,55 @@
         </div>
       </div>
     </section>
+
+    <!-- ───── PAGE 4 : OPERATOR GUIDE ───── -->
+    <section class="page" id="page-guide">
+      <div class="panel hero" style="margin-bottom:18px">
+        <span class="tag v">작업자용</span>
+        <div style="font-size:1.5rem;font-weight:800;letter-spacing:-.02em;margin:6px 0">공정 조건 규칙 · 조치 가이드</div>
+        <p>검사 대기열의 각 shot을 클릭하면 <b style="color:var(--accent-ink)">왜 플래그됐는지(규칙)와 무엇을 해야 하는지(조치)</b>를 바로 확인할 수 있습니다. 아래는 전체 규칙·불량 유형별 대응표입니다.</p>
+      </div>
+
+      <div class="panel" style="margin-bottom:18px">
+        <div class="phead"><div><h2>공정 조건 규칙 (사람이 읽는 IF-THEN)</h2><div class="sub" id="ruleSub">설명 가능한 규칙으로 불량 조기 포착</div></div></div>
+        <div class="grid c3" id="guideRules"></div>
+      </div>
+
+      <div class="grid c2e">
+        <div class="panel">
+          <div class="phead"><div><h2>불량 유형별 대응</h2><div class="sub">원인 진단 → 단기 조치 · 장기 대책</div></div></div>
+          <div class="grid" style="gap:12px" id="guideClusters"></div>
+        </div>
+        <div class="panel">
+          <div class="phead"><div><h2>구분 불가 구간 (재검사)</h2><div class="sub">측정값만으로 판별 불가</div></div></div>
+          <div id="guideIndist"></div>
+        </div>
+      </div>
+    </section>
   </div>
 </div>
+
+<!-- shot 상세 드로어 (작업자용) -->
+<div id="drawer-ov" onclick="closeDrawer()"></div>
+<aside id="drawer" aria-hidden="true">
+  <div class="dh"><div style="font-weight:800;font-size:.95rem">Shot 상세 · 작업자 안내</div>
+    <button class="x" onclick="closeDrawer()">✕</button></div>
+  <div id="drawer-body"></div>
+</aside>
 
 <script>
 const REFRESH_MS = 2000;
 let moldFilter = "all";
 let curPage = "live";
 let infoLoaded = false;
+let rulesLoaded = false, RULES_DATA = null;
+const QUEUE_BY_ID = {};
 
 const PAGE_META = {
   live:  {t:"실시간 모니터링", c:"공정 데이터 실시간 수집 · 불량 확률 3단계 자동 판정"},
   model: {t:"모델 성능",      c:"4개 모델 동일 조건 비교 · 영향 변수 · 성능 향상 과정"},
   prio:  {t:"검사 우선순위",  c:"위험도 기반 검사 순서 최적화 · 현장 활용 방안"},
+  guide: {t:"작업자 가이드",  c:"공정 조건 규칙 · 불량 유형별 조치 · shot 상세 안내"},
 };
 const fmt = n => (n??0).toLocaleString("ko-KR");
 const pct = (v,d=1) => (v*100).toFixed(d)+"%";
@@ -408,7 +491,7 @@ function countUp(el,to){
   if(from===to){el.textContent=fmt(to);return;}
   const t0=performance.now(),dur=600;
   (function step(t){
-    const k=Math.min((t-t0)/dur,1), e=1-Math.pow(1-k,3);
+    const k=Math.min(Math.max((t-t0)/dur,0),1), e=1-Math.pow(1-k,3);
     el.textContent=fmt(Math.round(from+(to-from)*e));
     if(k<1)requestAnimationFrame(step);
   })(performance.now());
@@ -427,6 +510,7 @@ function goPage(p){
   document.querySelector(".dot").style.background = liveOnly? "var(--ok)":"var(--dim)";
   if(location.hash.slice(1)!==p) history.replaceState(null,"","#"+p);
   if((p==="model"||p==="prio") && !infoLoaded) loadInfo();
+  if(p==="guide" && !rulesLoaded) loadRules();
   if(liveOnly) refresh();
 }
 document.querySelectorAll(".nav").forEach(n=>n.addEventListener("click",()=>goPage(n.dataset.page)));
@@ -508,8 +592,9 @@ async function refresh(){
     else{
       emp.style.display="none";
       body.innerHTML=rows.slice(0,20).map(r=>{
+        QUEUE_BY_ID[r.id]=r;
         const p=r.fail_prob, w=Math.min(p*500,100), c=probColor(p);
-        return `<tr>
+        return `<tr class="clk" data-id="${r.id}">
           <td class="mono">#${r.shot_no}</td>
           <td><span class="mold">${r.mold}</span></td>
           <td><div style="display:flex;align-items:center;gap:9px">
@@ -518,6 +603,11 @@ async function refresh(){
           <td style="text-align:right">${tierPill(r.tier)}</td>
         </tr>`;
       }).join("");
+    }
+    // 딥링크: ?shot=<id> 로 특정 shot 상세 열기 (작업자 공유용)
+    if(!window._shotOpened){
+      const sid=new URLSearchParams(location.search).get("shot");
+      if(sid && QUEUE_BY_ID[sid]){ window._shotOpened=true; openDrawer(+sid); }
     }
   }catch(e){/* 서버 준비 전 — 무시 */}
 }
@@ -631,6 +721,78 @@ function drawTiers(tiers,ds){
       <div class="foot">불량 ${t.defects}개 포착 · 적중률 ${pct(t.precision)}</div></div>`;
   }).join("");
 }
+
+/* ───────── PAGE 4 : 작업자 가이드 ───────── */
+async function loadRules(){
+  let d; try{ d=await fetch("/rules").then(r=>r.json()); }catch(e){return;}
+  if(!d||!d.rules||!d.rules.length)return; rulesLoaded=true; RULES_DATA=d;
+  const u=d.rules_union||{}, nsh=d.n_shots||1;
+  document.getElementById("ruleSub").textContent=
+    `규칙 ${d.rules.length}개(적용 ${Math.round((u.coverage||0)/nsh*100)}%)로 불량 ${Math.round((u.recall||0)*100)}% 포착 · 향상도 ${u.lift||"-"}배`;
+  document.getElementById("guideRules").innerHTML=d.rules.map(r=>`
+    <div class="rule">
+      <div class="top"><span class="id">${r.id}</span><span class="nm">${r.name}</span><span class="lift">lift ${r.lift}배</span></div>
+      <div class="cond">${r.cond_text}</div>
+      <div class="mini">
+        <div>적용<b>${fmt(r.coverage)}건</b></div>
+        <div>불량률<b>${(r.defect_rate*100).toFixed(1)}%</b></div>
+        <div>포착<b>${r.defects}/${d.n_defects}</b></div>
+      </div>
+      <div class="act">${r.action_short}</div>
+    </div>`).join("");
+  document.getElementById("guideClusters").innerHTML=(d.clusters||[]).map(c=>`
+    <div class="cl"><div class="badge"></div>
+      <div class="ty">유형 ${c.type} · ${c.n}건 · ${c.label}</div>
+      <div class="ft" style="margin-top:6px">${c.cause}</div>
+      <div class="ac">단기: ${c.action_short}</div>
+      <div class="ac" style="border-top:0;padding-top:4px">장기: ${c.action_long}</div>
+    </div>`).join("");
+  const ind=d.indistinguishable||{}, lc=d.label_collision||{};
+  document.getElementById("guideIndist").innerHTML=`
+    <div class="dbox" style="border-left:3px solid var(--warn)">
+      <div style="font-weight:800;margin-bottom:8px">불량 ${lc.defects}/${d.n_defects}건(${Math.round((lc.defect_ratio||0)*100)}%)이 양품과 <b>동일한 측정값</b>에서 발생</div>
+      <div style="color:var(--muted);line-height:1.6">${ind.cond_text||""}<br>→ 측정값만으로는 구분 불가 → <b style="color:var(--text)">${ind.action_short||"샘플 재검사"}</b></div>
+      <div style="color:var(--dim);font-size:.74rem;margin-top:10px">장기: ${ind.action_long||""}</div>
+    </div>`;
+}
+
+/* ───────── shot 상세 드로어 (작업자) ───────── */
+function clusterLabel(t){
+  const c=(RULES_DATA&&RULES_DATA.clusters||[]).find(x=>x.type===t);
+  return c ? `유형 ${t} · ${c.label}` : (t ? `유형 ${t}` : "구분 불가 구간");
+}
+function renderDrawer(r){
+  const p=r.fail_prob, c=probColor(p), u=r.uncertainty||0, uw=Math.min(u/0.3*100,100);
+  const chips=(r.rule_ids||"").split(",").map(s=>s.trim()).filter(Boolean)
+    .map(x=>`<span class="rchip">${x}</span>`).join("") || '<span style="color:var(--dim)">직접 규칙 없음</span>';
+  return `
+   <div style="display:flex;align-items:baseline;gap:10px">
+     <div class="dbig" style="color:${c}">${pct(p)}</div>${tierPill(r.tier)}
+   </div>
+   <div style="font-size:.78rem;color:var(--muted);margin-top:4px">Shot #${r.shot_no} · 금형 ${r.mold} · 불량 확률</div>
+   <div class="drow"><span class="k">추정 불량 유형</span><span class="v">${clusterLabel(r.defect_type)}</span></div>
+   <div class="drow"><span class="k">모델 불확실성</span><span class="v" style="display:flex;align-items:center;gap:8px"><span class="bar" style="width:90px"><i style="width:${uw}%;background:var(--warn)"></i></span>${(u*100).toFixed(1)}%</span></div>
+   <div class="drow"><span class="k">발동 규칙</span><span class="v">${chips}</span></div>
+   <div class="dsec"><div class="t">왜 플래그됐나</div><div class="dbox why">${r.reason||"-"}</div></div>
+   <div class="dsec"><div class="t">권장 조치</div><div class="dbox act">${r.action||"-"}</div></div>
+   <div class="dsec" style="font-size:.72rem;color:var(--dim);line-height:1.6">
+     ※ 불확실성 = 앙상블 두 모델(RF·LGB)의 예측 불일치. 높을수록 재검사 가치가 큽니다.
+   </div>`;
+}
+function openDrawer(id){
+  const r=QUEUE_BY_ID[id]; if(!r)return;
+  document.getElementById("drawer-body").innerHTML=renderDrawer(r);
+  document.getElementById("drawer").classList.add("open");
+  document.getElementById("drawer-ov").classList.add("open");
+}
+function closeDrawer(){
+  document.getElementById("drawer").classList.remove("open");
+  document.getElementById("drawer-ov").classList.remove("open");
+}
+document.getElementById("q-body").addEventListener("click",e=>{
+  const tr=e.target.closest("tr.clk"); if(tr) openDrawer(+tr.dataset.id);
+});
+document.addEventListener("keydown",e=>{ if(e.key==="Escape") closeDrawer(); });
 
 goPage(location.hash.slice(1)||"live");
 setInterval(refresh,REFRESH_MS);

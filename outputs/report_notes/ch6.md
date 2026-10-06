@@ -8,11 +8,13 @@
 python run_all.py
 ```
 
-- `run_all.py`가 3단계를 순서대로 호출(서브프로세스는 `sys.executable`로 현재 가상환경 보장):
+- `run_all.py`가 5단계를 순서대로 호출(서브프로세스는 `sys.executable`로 현재 가상환경 보장):
   1. `src.train` — 피처 엔지니어링 + 4모델 CV 비교 + 금형 교차검증 + 최종 모델 저장 (1·2장)
   2. `src.analysis` — SHAP·상호작용·FN/FP·군집화 (3장)
-  3. `src.predict` — 검사 우선순위 곡선 + 3단계 판정 + unlabeled 예측 파일
-- 소요 시간: **약 10~15분** (CV 5-fold × 10회 반복 = 50회 학습 × 4모델 + SHAP).
+  3. `src.rules` — 공정 조건 규칙(R1~R3) + 구분불가 증명(라벨 충돌) (3·4·5장)
+  4. `src.advanced` — 확률 보정·불확실성·드리프트 심화분석 (5·6장)
+  5. `src.predict` — 검사 우선순위 곡선 + 3단계 판정 + unlabeled 예측 파일
+- 소요 시간: **약 12~17분** (CV 5-fold × 10회 반복 × 4모델 + SHAP + 심화 CV).
 
 ## 6.2 재현성 보장 장치
 
@@ -55,7 +57,9 @@ injection-ai/
 | `feature_columns.json` | 피처 컬럼 순서(37개) |
 | `cv_predictions.csv` | CV holdout 예측 (3장 분석·대시보드 /model-info 라이브 계산용) |
 | `predictions_unlabeled.csv` | **제출용 예측 파일** (원본 행 순서 + fail_prob + PassOrFail + tier) |
-| `0*.png` | 그래프 01~12 |
+| `process_rules.json` | 공정 조건 규칙 R1~R3 + 구분불가 통계 (앱·보고서용) |
+| `advanced_metrics.json` | 보정·불확실성·드리프트 지표 |
+| `0*.png`, `13~15.png` | 그래프 01~12 + 보정·불확실성·드리프트 |
 
 ## 6.6 앱 실행 (4장 시연)
 
@@ -75,3 +79,25 @@ python app/simulator.py --rate 5 --limit 500   # 실시간 데이터 주입
 - 유일한 차이: `07_shap_beeswarm.png`의 점 jitter(시각적 차이, SHAP 값 동일) — 내용상 영향 없음.
 
 → 시드 고정·버전 고정으로 **완전 재현** 확인.
+(주: 10/6 이후 `src.rules`·`src.advanced` 2단계가 파이프라인에 추가됨 — 동일 시드로 재현.)
+
+## 6.8 분포 드리프트 & 확장성 (운영 신뢰성)
+
+학습(labeled)과 실제 운영(unlabeled 71,180건)의 피처 분포 차이를 PSI로 측정:
+
+| 피처 | PSI | 판정 |
+|---|---|---|
+| Cushion_Position | 6.71 | 유의한 드리프트 |
+| ewma_resid_norm | 4.35 | 유의 |
+| Cycle_Time | 3.75 | 유의 |
+| Max_Injection_Pressure | 3.48 | 유의 |
+| barrel_temp_range | 1.69 | 유의 |
+
+(PSI<0.1 안정 / 0.1~0.25 보통 / >0.25 유의)
+
+- **해석**: labeled는 소량의 특정 구간 표본이라 운영 데이터와 분포가 크게 다르다(다수 PSI>1). 이는 금형 교차검증 F1=0(2.4절)과 같은 원인(분포·정규화 차이).
+- **확장·운영 설계**:
+  1. 운영 중 입력 분포를 PSI로 상시 감시 → 임계 초과 시 경보·재학습 트리거.
+  2. 신규 금형·설비 도입 시 소량 라벨로 재학습/파인튜닝(4.6절 로드맵 중·장기).
+  3. 그룹 단위 검증(StratifiedGroupKFold)으로 '처음 보는 구간'에서의 일반화를 사전 점검.
+- **한계 명시**: 현재 unlabeled 예측은 분포 차이로 불확실성이 크므로, 제출 예측은 '순위(우선순위)' 용도로 해석하고 절대 확률은 현장 보정 후 사용 권장.

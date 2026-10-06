@@ -54,11 +54,22 @@
 - [x] 재현성 확인 완료 — run_all.py 8.0분, 전 수치 일치, cv_predictions.csv md5 완전 일치
 - [x] PROGRESS.md 갱신
 
+### 수상 각도 강화 (10/06 추가)
+- [x] **중대 교정**: ch3 SHAP 순위 오류 수정 — 실제 Top4는 Plasticizing_Time_delta→ewma_resid_norm→Clamp_Close_Time→barrel_temp_range. spc_violation_count는 labeled 전구간 0(미발동)이라 "4위" 주장 삭제(ch2/ch3/PROGRESS 정정)
+- [x] src/rules.py — 공정 조건 규칙 R1~R3(적용 21%→불량 60% 포착, lift 2.84배) + 구분불가 증명(라벨충돌 86%) → outputs/process_rules.json
+- [x] src/advanced.py — 확률보정(Brier 0.015 이미 우수, isotonic 개선 0%) + 불확실성(RF↔LGB 불일치, 사분위 0→4.2% 단조) + 드리프트(PSI 다수>1) → 13·14·15.png, advanced_metrics.json
+- [x] ch3/4/5/6 + 본문초안 전면 재구성 (구분불가 증명→규칙→현장조치, 경제성 ROI, 단기/장기 로드맵, 유형별 대책)
+- [x] run_all.py에 rules·advanced 2단계 추가 (5단계 파이프라인)
+- [x] **앱 작업자 개편**: /rules·/predict 설명 확장(규칙·유형·불확실성·조치), 대기열 클릭→shot 상세 드로어(왜+무엇을), 작업자 가이드 페이지(4번째 탭), ?shot= 딥링크
+- [x] 대시보드 캡처 5장 (live/model/priority/guide/shot_detail)
+
 ### 남은 일 (사용자 몫)
 - [ ] 보고서_본문_초안.md → hwpx 양식에 붙여넣고 그래프·캡처 삽입 후 PDF 저장
+  (그래프: 01~15.png / 캡처: dashboard_1~5)
 - [ ] 발표자료 PPT·PDF
 - [ ] 만족도 설문 캡처 첨부
 - [ ] 참가 계획서 내용과 본문 대조 (CLAUDE.md 3장 주의)
+- [ ] (권장) 최종 제출 전 `python run_all.py` 1회 — rules·advanced 포함 5단계 재현 확인
 
 ---
 
@@ -93,4 +104,7 @@
 | 상위 20% 검사 | 불량 62% 포착 (무작위 대비 3.1배) |
 | 상위 30% 검사 | 불량 76% 포착 (무작위 대비 2.5배) |
 | Rolling 피처 효과 | 20%구간 포착률 52%→62% (+10%p) |
-| SPC 피처 순위 | SHAP 4위 (spc_violation_count) |
+| SHAP 실제 Top4 | Plasticizing_Time_delta → ewma_resid_norm → Clamp_Close_Time → barrel_temp_range |
+| spc_violation_count | labeled 전 구간 0(미발동) → 규칙·중요도에서 제외. EWMA 잔차가 SPC 역할 |
+| 공정 규칙 R1~R3 | 적용 21%로 불량 60% 포착(lift 2.84배) — ML과 동등, 설명가능 |
+| 구분 불가 | 라벨 충돌로 불량 86%(36/42)가 양품과 동일 측정값 |

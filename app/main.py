@@ -25,6 +25,7 @@ from src.features import make_features, ROLLING_WINDOW, MOLD_MAP
 MODEL = None
 FEATURE_COLS = None
 MODEL_INFO = None
+RULES = None
 DB_PATH = "outputs/shots.db"
 
 RAW_COLS = [
@@ -61,6 +62,13 @@ def init_db():
             {raw_cols_sql}
         )
     """)
+    # 작업자용 설명 컬럼 (기존 DB에도 안전하게 추가)
+    for col, typ in [("defect_type", "TEXT"), ("rule_ids", "TEXT"),
+                     ("reason", "TEXT"), ("action", "TEXT"), ("uncertainty", "REAL")]:
+        try:
+            conn.execute(f"ALTER TABLE shots ADD COLUMN {col} {typ}")
+        except sqlite3.OperationalError:
+            pass  # 이미 존재
     conn.commit()
     conn.close()
 
@@ -218,6 +226,14 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         print(f"모델 정보 계산 실패(대시보드 2·3페이지 제한): {e}")
         MODEL_INFO = {}
+    global RULES
+    try:
+        with open("outputs/process_rules.json", encoding="utf-8") as f:
+            RULES = json.load(f)
+        print(f"공정 규칙 로드: {len(RULES.get('rules', []))}개")
+    except Exception as e:
+        print(f"공정 규칙 로드 실패(작업자 설명 제한): {e}")
+        RULES = {"rules": [], "clusters": [], "indistinguishable": {}}
     print("모델 로드 완료. 서버 준비.")
     yield
 
@@ -297,6 +313,45 @@ def get_tier(prob: float, hi_pct: float = 0.95, lo_pct: float = 0.80) -> int:
         return 0  # 통과
 
 
+def _check_cond(val: float, op: str, thr: float) -> bool:
+    if op == ">=":
+        return val >= thr
+    if op == "<=":
+        return val <= thr
+    if op == "abs>=":
+        return abs(val) >= thr
+    return False
+
+
+def explain_shot(X_row: pd.DataFrame, prob: float, tier: int) -> dict:
+    """발동 규칙·불량 유형·조치를 산출해 작업자용 설명을 만든다."""
+    fired = []
+    for r in (RULES or {}).get("rules", []):
+        if all(_check_cond(float(X_row[c["feat"]].iloc[0]), c["op"], c["val"])
+               for c in r["machine"] if c["feat"] in X_row.columns):
+            fired.append(r)
+    # lift 높은 규칙 우선
+    fired.sort(key=lambda r: -r.get("lift", 0))
+
+    if fired:
+        top = fired[0]
+        return {
+            "defect_type": top.get("cluster"),
+            "rule_ids": ", ".join(r["id"] for r in fired),
+            "reason": top.get("cond_text", ""),
+            "action": top.get("action_short", ""),
+        }
+    if tier >= 1:
+        ind = (RULES or {}).get("indistinguishable", {})
+        return {
+            "defect_type": None,
+            "rule_ids": "",
+            "reason": "측정 변수는 정상 범위이나 모델 위험도가 높음 (구분 불가 구간 가능성)",
+            "action": ind.get("action_short", "샘플 추출 재검사 권장"),
+        }
+    return {"defect_type": None, "rule_ids": "", "reason": "정상 범위", "action": "정상 생산 지속"}
+
+
 # ═══════════════════════════════════════════════════════
 # 엔드포인트
 # ═══════════════════════════════════════════════════════
@@ -311,27 +366,41 @@ async def predict(shot: ShotInput):
     tier = get_tier(prob)
     tier_labels = {0: "통과", 1: "재검사", 2: "즉시검사"}
 
+    # 불확실성 = 앙상블 멤버(RF↔LGB) 예측 불일치
+    try:
+        p_rf = float(MODEL.named_estimators_["rf"].predict_proba(X)[0, 1])
+        p_lg = float(MODEL.named_estimators_["lgbm"].predict_proba(X)[0, 1])
+        uncertainty = round(abs(p_rf - p_lg), 4)
+    except Exception:
+        uncertainty = 0.0
+
+    # 작업자용 설명 (왜 + 무엇을)
+    exp = explain_shot(X, prob, tier)
+
     # DB 저장
     conn = get_db()
     raw_vals = {c: getattr(shot, c) for c in RAW_COLS}
-    cols = ["shot_no", "mold", "fail_prob", "tier"] + RAW_COLS
-    vals = [shot.shot_no, shot.mold, round(prob, 4), tier] + [raw_vals[c] for c in RAW_COLS]
+    cols = (["shot_no", "mold", "fail_prob", "tier", "uncertainty",
+             "defect_type", "rule_ids", "reason", "action"] + RAW_COLS)
+    vals = ([shot.shot_no, shot.mold, round(prob, 4), tier, uncertainty,
+             exp["defect_type"], exp["rule_ids"], exp["reason"], exp["action"]]
+            + [raw_vals[c] for c in RAW_COLS])
     placeholders = ", ".join(["?"] * len(cols))
     conn.execute(f"INSERT INTO shots ({', '.join(cols)}) VALUES ({placeholders})", vals)
     conn.commit()
     conn.close()
 
     return {
-        "shot_no":    shot.shot_no,
-        "mold":       shot.mold,
-        "fail_prob":  round(prob, 4),
-        "tier":       tier,
-        "tier_label": tier_labels[tier],
-        "action": {
-            2: "즉시 검사 대기열에 추가",
-            1: "샘플 재검사 예약",
-            0: "통과 — 정상 생산 계속",
-        }[tier],
+        "shot_no":     shot.shot_no,
+        "mold":        shot.mold,
+        "fail_prob":   round(prob, 4),
+        "tier":        tier,
+        "tier_label":  tier_labels[tier],
+        "uncertainty": uncertainty,
+        "defect_type": exp["defect_type"],
+        "rule_ids":    exp["rule_ids"],
+        "reason":      exp["reason"],
+        "action":      exp["action"],
     }
 
 
@@ -340,7 +409,8 @@ async def inspection_queue(limit: int = 50):
     """위험도 순 검사 대기열 반환 (미처리 건 우선)."""
     conn = get_db()
     rows = pd.read_sql(
-        """SELECT id, shot_no, mold, fail_prob, tier, inspected, created_at
+        """SELECT id, shot_no, mold, fail_prob, tier, inspected, created_at,
+                  uncertainty, defect_type, rule_ids, reason, action
            FROM shots
            WHERE tier >= 1
            ORDER BY fail_prob DESC, id DESC
@@ -404,6 +474,12 @@ async def reset_db():
 async def model_info():
     """모델 성능 · 피처 중요도 · 검사 우선순위 (대시보드 2·3페이지용)."""
     return MODEL_INFO or {}
+
+
+@app.get("/rules")
+async def rules():
+    """공정 조건 규칙 · 불량 유형 · 조치 가이드 (작업자 가이드 페이지용)."""
+    return RULES or {}
 
 
 @app.get("/", response_class=HTMLResponse)

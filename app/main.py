@@ -157,22 +157,28 @@ def compute_model_info() -> dict:
     except Exception:
         info["pr_auc_live"] = None
 
-    # 실제 피처 중요도 (앙상블 rf+lgbm 평균, 정규화)
+    # 피처 중요도 — SHAP(보고서 3장과 일치). 데이터/shap 미가용 시 gain으로 폴백
     try:
+        import shap
+        from src.features import load_labeled
+        Xlab, _, _ = make_features(load_labeled(), is_train=True)
+        sv = shap.TreeExplainer(MODEL.named_estimators_["lgbm"]).shap_values(Xlab)
+        sv = sv[1] if isinstance(sv, list) else sv
+        imp = np.abs(sv).mean(0)
+        info["importance_method"] = "SHAP"
+    except Exception:
         rf = MODEL.named_estimators_["rf"].feature_importances_.astype(float)
         lg = MODEL.named_estimators_["lgbm"].feature_importances_.astype(float)
-        rf, lg = rf / rf.sum(), lg / lg.sum()
-        imp = (rf + lg) / 2
-        pairs = sorted(zip(FEATURE_COLS, imp), key=lambda x: -x[1])[:12]
-        mx = pairs[0][1]
-        info["feature_importance"] = [
-            {"name": c, "label": FEATURE_LABELS.get(c, c),
-             "value": round(float(v), 4), "rel": round(float(v / mx), 4),
-             "group": _feature_group(c)}
-            for c, v in pairs
-        ]
-    except Exception:
-        info["feature_importance"] = []
+        imp = (rf / rf.sum() + lg / lg.sum()) / 2
+        info["importance_method"] = "gain"
+    pairs = sorted(zip(FEATURE_COLS, imp), key=lambda x: -x[1])[:12]
+    mx = pairs[0][1] or 1.0
+    info["feature_importance"] = [
+        {"name": c, "label": FEATURE_LABELS.get(c, c),
+         "value": round(float(v), 4), "rel": round(float(v / mx), 4),
+         "group": _feature_group(c)}
+        for c, v in pairs
+    ]
 
     # 보고서(report_notes ch2/ch3) 확정 수치
     info["metrics"] = {"f1": 0.343, "pr_auc": 0.258, "recall": 0.284,
